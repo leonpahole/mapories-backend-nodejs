@@ -27,5 +27,17 @@ export class ILogEntry extends TimeStamps {
   public visitDate!: Date;
 }
 
-const LogEntry = getModelForClass(ILogEntry);
+const LogEntry = getModelForClass(ILogEntry, {
+  schemaOptions: {
+    versionKey: false,
+    timestamps: true,
+    toJSON: {
+      transform: (_, ret) => {
+        ret.id = ret._id;
+        delete ret._id;
+      },
+    },
+  },
+});
+
 export default LogEntry;

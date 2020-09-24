@@ -1,16 +1,7 @@
 import { injectable } from "inversify";
 import LogEntry, { ILogEntry } from "../db/models/logEntry.model";
-
-interface ICreateLogInput {
-  title: string;
-  description?: string;
-  comment?: string;
-  rating?: number;
-  image?: string;
-  latitude: number;
-  longitude: number;
-  visitDate: Date;
-}
+import { NewLogRequest } from "../controllers/log.controller";
+import { logger } from "../utils/logger";
 
 @injectable()
 export class LogService {
@@ -18,11 +9,16 @@ export class LogService {
     return LogEntry.find({}).exec();
   }
 
-  public getLog(id: string): Promise<ILogEntry | null> {
-    return LogEntry.findOne({ _id: id }).exec();
+  public async getLog(id: string): Promise<ILogEntry | null> {
+    try {
+      return await LogEntry.findOne({ _id: id }).exec();
+    } catch (e) {
+      logger.error(e);
+      return null;
+    }
   }
 
-  public createLog(data: ICreateLogInput): Promise<ILogEntry> {
+  public createLog(data: NewLogRequest): Promise<ILogEntry> {
     return LogEntry.create(data);
   }
 }

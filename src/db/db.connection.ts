@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { logger } from "../utils/logger";
 
 export class DbConnection {
   public static getConnectUrl(): string {
@@ -15,10 +16,10 @@ export class DbConnection {
     return mongoose
       .connect(connStr, { useNewUrlParser: true, useUnifiedTopology: true })
       .then(() => {
-        console.log("Connected to the database");
+        logger.info("Connected to the database");
       })
       .catch((error) => {
-        console.error("Error connecting to database: ", error);
+        logger.error("Error connecting to database: ", error);
         return process.exit(1);
       });
   }

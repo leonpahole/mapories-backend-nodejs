@@ -5,7 +5,7 @@ if (!__prod__) {
   require("dotenv-safe").config();
 }
 
-import morgan from "morgan";
+import pino from "pino-http";
 import helmet from "helmet";
 import cors from "cors";
 import { json } from "express";
@@ -16,6 +16,7 @@ import { ContainerConfigLoader } from "./config/container";
 
 import { InversifyExpressServer } from "inversify-express-utils";
 import "./controllers/log.controller";
+import { logger } from "./utils/logger";
 
 const container = ContainerConfigLoader.Load();
 
@@ -26,7 +27,7 @@ DbConnection.initConnection().then(() => {
   const server = new InversifyExpressServer(container);
 
   server.setConfig((app) => {
-    app.use(morgan("common"));
+    app.use(pino());
     app.use(helmet());
     app.use(
       cors({
@@ -42,5 +43,5 @@ DbConnection.initConnection().then(() => {
   serverInstance.use(errorHandler);
 
   serverInstance.listen(process.env.PORT || 4000);
-  console.log(`Server started on port ${process.env.PORT} :)`);
+  logger.info(`Server started on port ${process.env.PORT} :)`);
 });
