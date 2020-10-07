@@ -2,16 +2,18 @@ import { Request, Response, NextFunction } from "express";
 import { __prod__ } from "./config/constants";
 import { plainToClass } from "class-transformer";
 import { validate } from "class-validator";
-import { logger } from "./utils/logger";
+import { IRequest } from "./types/api";
+import { StatusCodes as HttpStatus } from "http-status-codes";
+import { CommonError } from "./errors/common.error";
+import { AppError } from "./errors/AppError";
 
 export const notFoundHandler = (
   _: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const error = new Error("Not found");
-  res.status(404);
-  next(error);
+  res.status(HttpStatus.NOT_FOUND);
+  next(CommonError.NOT_FOUND);
 };
 
 export const errorHandler = (
@@ -20,7 +22,11 @@ export const errorHandler = (
   res: Response,
   __: NextFunction
 ) => {
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  if (err instanceof AppError) {
+    statusCode = err.httpCode;
+  }
+
   res.status(statusCode);
   res.json({
     message: err.message,
@@ -34,16 +40,35 @@ export const validation = (dtoClass: any) => {
     const output: any = plainToClass(dtoClass, req.body);
     validate(output, { skipMissingProperties: true }).then((errors) => {
       if (errors.length > 0) {
-        logger.error(errors);
-        let errorTexts = Array();
+        const errObj: Record<string, string> = {};
+
         for (const errorItem of errors) {
-          errorTexts = errorTexts.concat(errorItem.constraints);
+          const items = Object.values(errorItem.constraints || {});
+          if (items.length > 0) {
+            errObj[errorItem.property] = items[0];
+          } else {
+            errObj[errorItem.property] = "Unknown error";
+          }
         }
-        res.status(422).send(errorTexts);
+
+        res.status(HttpStatus.UNPROCESSABLE_ENTITY).send({
+          message: "VALIDATION_ERROR",
+          errors: errObj,
+        });
+
         return;
       } else {
         next();
       }
     });
   };
+};
+
+export const isAuth = (req: IRequest, res: Response, next: NextFunction) => {
+  if (!req.session.userId) {
+    res.status(HttpStatus.UNAUTHORIZED);
+    throw CommonError.REQUIRES_AUTH_ERROR;
+  }
+
+  return next();
 };

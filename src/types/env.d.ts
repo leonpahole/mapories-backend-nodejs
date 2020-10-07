@@ -7,6 +7,13 @@ declare namespace NodeJS {
     DB_HOST: string;
     DB_PORT: string;
     DB_DATABASE: string;
-    CORS_ORIGIN: string;
+    FRONTEND_URL: string;
+    COOKIE_DOMAIN: string;
+    SESSION_SECRET: string;
+    JWT_SECRET: string;
+    REDIS_HOST: string;
+    MAILGUN_DOMAIN: string;
+    MAILGUN_API_KEY: string;
+    MAIL_FROM: string;
   }
 }
