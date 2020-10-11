@@ -10,11 +10,11 @@ export class IUser extends TimeStamps {
   @prop({ required: true, unique: true })
   public email!: string;
 
-  @prop()
+  @prop({ required: true })
   public name!: string;
 
   @prop()
-  public password!: string;
+  public password?: string;
 
   @prop({ required: true, default: false })
   public isVerified!: boolean;

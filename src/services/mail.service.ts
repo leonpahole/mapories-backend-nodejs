@@ -5,8 +5,11 @@ import mg from "nodemailer-mailgun-transport";
 import { logger } from "../utils/logger";
 
 type EmailTemplates = {
-  welcome: {
+  verify: {
     link: string;
+    name: string;
+  };
+  welcome: {
     name: string;
   };
   resetPassword: {
@@ -64,10 +67,22 @@ export class MailService {
     return this.sendMail(myEmail);
   }
 
-  public async sendWelcomeMail(
+  public async sendVerifyMail(
     to: string,
-    params: EmailTemplates["welcome"]
+    params: EmailTemplates["verify"]
   ): Promise<boolean> {
+    const myEmail: EmailTemplate<"verify"> = {
+      template: "verify",
+      message: {
+        to,
+      },
+      locals: params,
+    };
+
+    return this.sendMail(myEmail);
+  }
+
+  public async sendWelcomeMail(to: string, params: EmailTemplates["welcome"]) {
     const myEmail: EmailTemplate<"welcome"> = {
       template: "welcome",
       message: {

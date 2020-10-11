@@ -42,8 +42,14 @@ export class UserService {
     }
   }
 
-  public async createUser(data: RegisterRequest): Promise<IUser> {
-    const hashedPassword = await argon2.hash(data.password);
+  public async createUser(
+    data: RegisterRequest,
+    isSocial: boolean = false
+  ): Promise<IUser> {
+    let hashedPassword = undefined;
+    if (!isSocial) {
+      hashedPassword = await argon2.hash(data.password);
+    }
 
     let user: IUser | null = null;
 
@@ -51,7 +57,7 @@ export class UserService {
       user = await User.create({
         ...data,
         password: hashedPassword,
-        isVerified: false,
+        isVerified: isSocial,
       });
     } catch (e) {
       logger.error("Create user error %o", e);
@@ -63,12 +69,10 @@ export class UserService {
       throw CommonError.UNKNOWN_ERROR;
     }
 
-    const mailSuccess = this.sendVerifyMail(user);
-
-    if (!mailSuccess) {
-      logger.error("Reverting insert of user");
-      await User.deleteOne({ _id: user._id });
-      throw UserError.VERIFY_EMAIL_SENDING_ERROR;
+    if (isSocial) {
+      await this.sendWelcomeMail(user);
+    } else {
+      await this.sendVerifyMail(user);
     }
 
     return user;
@@ -82,8 +86,14 @@ export class UserService {
       process.env.JWT_SECRET
     );
 
-    return await this.mailService.sendWelcomeMail(user.email, {
+    return await this.mailService.sendVerifyMail(user.email, {
       link: `${process.env.FRONTEND_URL}/verify-email/${token}`,
+      name: user.name,
+    });
+  }
+
+  private async sendWelcomeMail(user: IUser): Promise<boolean> {
+    return await this.mailService.sendWelcomeMail(user.email, {
       name: user.name,
     });
   }
@@ -91,6 +101,10 @@ export class UserService {
   public async login(data: LoginRequest): Promise<IUser> {
     const user = await this.getUserByEmail(data.email);
     if (!user) {
+      throw UserError.WRONG_LOGIN_CREDENTIALS;
+    }
+
+    if (user.password == null) {
       throw UserError.WRONG_LOGIN_CREDENTIALS;
     }
 
@@ -116,6 +130,8 @@ export class UserService {
     await User.update({ _id: user._id }, { isVerified: true });
 
     user.isVerified = true;
+
+    await this.sendWelcomeMail(user);
 
     return user;
   }

@@ -15,5 +15,7 @@ declare namespace NodeJS {
     MAILGUN_DOMAIN: string;
     MAILGUN_API_KEY: string;
     MAIL_FROM: string;
+    TWITTER_CONSUMER_KEY: string;
+    TWITTER_CONSUMER_SECRET: string;
   }
 }
