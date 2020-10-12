@@ -16,6 +16,9 @@ export class IUser extends TimeStamps {
   @prop()
   public password?: string;
 
+  @prop()
+  public profilePictureUrl?: string;
+
   @prop({ required: true, default: false })
   public isVerified!: boolean;
 }

@@ -20,10 +20,8 @@ import { IRequest } from "../types/api";
 import { logger } from "../utils/logger";
 import {
   SocialAuthService,
-  SocialProviderData,
   LoginSocialResponse,
 } from "../services/social-auth.service";
-import { encode } from "punycode";
 
 export class RegisterRequest {
   @IsDefined({ message: "Please enter your email address!" })
@@ -39,6 +37,8 @@ export class RegisterRequest {
   @MinLength(4, { message: "Password should be at least 4 letters long!" })
   @MaxLength(250, { message: "Password shouldn't be longer than 250 letters!" })
   public password: string;
+
+  public profilePictureUrl?: string;
 }
 
 export class VerifyAccontRequest {
@@ -99,6 +99,8 @@ export class RegisterSocialRequest {
 
   @MaxLength(40, { message: "Name shouldn't be longer than 40 letters!" })
   public name: string;
+
+  public profilePictureUrl?: string;
 }
 
 export type SocialProvider = "facebook" | "google" | "twitter";

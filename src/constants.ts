@@ -9,3 +9,9 @@ export const FORGOT_PASSWORD_LINK_EXPIRY_MS =
 
 export const AUTH_ERROR = "Auth error";
 export const USER_UNVERIFIED_ERROR = "Unverified error";
+
+export const PUBLIC_DIR = "public"; // where finished files are stored (compression etc.)
+export const UPLOADS_DIR = "uploads"; // where files for processing are first uploaded
+
+export const PROFILE_PIC_PUBLIC_DIR = `${PUBLIC_DIR}/profile-pictures`;
+export const PROFILE_PIC_UPLOADS_DIR = `${UPLOADS_DIR}/profile-pictures`;

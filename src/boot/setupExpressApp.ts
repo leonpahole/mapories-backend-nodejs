@@ -2,9 +2,9 @@ import { InversifyExpressServer } from "inversify-express-utils";
 import { ContainerConfigLoader } from "../config/container";
 import helmet from "helmet";
 import cors from "cors";
-import { json } from "express";
+import express, { json } from "express";
 import session from "express-session";
-import { COOKIE_NAME } from "../constants";
+import { COOKIE_NAME, PUBLIC_DIR } from "../constants";
 import { __prod__ } from "../config/constants";
 import { notFoundHandler, errorHandler } from "../middlewares";
 import IORedis from "ioredis";
@@ -33,6 +33,8 @@ export const setupExpressApp = (
       })
     );
     app.use(json());
+    app.use("/public", express.static(PUBLIC_DIR));
+
     app.use(
       session({
         name: COOKIE_NAME,

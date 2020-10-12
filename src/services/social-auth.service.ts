@@ -12,11 +12,12 @@ import axios from "axios";
 import crypto from "crypto";
 import { logger } from "../utils/logger";
 import { v1 } from "uuid";
+import { ImageService } from "./image.service";
 
 export interface SocialProviderData {
   name: string;
   email: string;
-  profilePicture?: string;
+  profilePictureUrl?: string;
 }
 
 interface FacebookUserData {
@@ -55,7 +56,10 @@ const TWITTER_API_URL = "https://api.twitter.com";
 
 @injectable()
 export class SocialAuthService {
-  constructor(@inject(TYPES.UserService) private userService: UserService) {}
+  constructor(
+    @inject(TYPES.UserService) private userService: UserService,
+    @inject(TYPES.ImageService) private imageService: ImageService
+  ) {}
 
   public async loginSocial(
     provider: SocialProvider,
@@ -102,11 +106,20 @@ export class SocialAuthService {
       return existingUser;
     }
 
+    let profilePicPath: string | undefined = undefined;
+
+    if (request.profilePictureUrl) {
+      profilePicPath = await this.imageService.downloadAndCompressProfileImage(
+        request.profilePictureUrl
+      );
+    }
+
     return await this.userService.createUser(
       {
         name: request.name,
         email: providerData.email,
         password: "",
+        profilePictureUrl: profilePicPath,
       },
       true
     );
@@ -144,7 +157,7 @@ export class SocialAuthService {
       return {
         email: data.email,
         name: data.name,
-        profilePicture: data.picture.data.url,
+        profilePictureUrl: data.picture.data.url,
       };
     } catch (e) {
       logger.error("FB error");
@@ -169,7 +182,7 @@ export class SocialAuthService {
       return {
         email: data.email,
         name: data.name,
-        profilePicture: data.picture,
+        profilePictureUrl: data.picture,
       };
     } catch (e) {
       logger.error("Google error");
@@ -208,7 +221,7 @@ export class SocialAuthService {
       return {
         email: data.email,
         name: data.name,
-        profilePicture: data.profile_image_url_https,
+        profilePictureUrl: data.profile_image_url_https,
       };
     } catch (e) {
       logger.error("Google error");

@@ -6,6 +6,7 @@ import { IRequest } from "./types/api";
 import { StatusCodes as HttpStatus } from "http-status-codes";
 import { CommonError } from "./errors/common.error";
 import { AppError } from "./errors/AppError";
+import { logger } from "./utils/logger";
 
 export const notFoundHandler = (
   _: Request,
@@ -25,6 +26,8 @@ export const errorHandler = (
   let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
   if (err instanceof AppError) {
     statusCode = err.httpCode;
+  } else {
+    logger.error(err);
   }
 
   res.status(statusCode);

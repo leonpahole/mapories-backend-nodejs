@@ -19,10 +19,14 @@ import TYPES from "../config/types";
 import { MailService } from "./mail.service";
 import { UserError } from "../errors/user.error";
 import { CommonError } from "../errors/common.error";
+import { ImageService } from "./image.service";
 
 @injectable()
 export class UserService {
-  constructor(@inject(TYPES.MailService) private mailService: MailService) {}
+  constructor(
+    @inject(TYPES.MailService) private mailService: MailService,
+    @inject(TYPES.ImageService) private imageService: ImageService
+  ) {}
 
   public async getUserById(id: string): Promise<IUser | null> {
     try {
@@ -234,5 +238,15 @@ export class UserService {
     const user = await this.getUserFromTokenPayload(data.token);
     const hashedPassword = await argon2.hash(data.newPassword);
     await User.update({ _id: user._id }, { password: hashedPassword });
+  }
+
+  public async uploadProfilePicture(userId: string, file: Express.Multer.File) {
+    const profilePicturePath = await this.imageService.uploadAndCompressProfileImage(
+      file
+    );
+    await User.update(
+      { _id: userId },
+      { profilePictureUrl: profilePicturePath }
+    );
   }
 }
