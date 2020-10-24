@@ -5,14 +5,16 @@ import {
   request,
   httpGet,
   httpPost,
+  requestParam,
 } from "inversify-express-utils";
 import TYPES from "../config/types";
-import { IUser } from "../db/models/user.model";
 import { isAuth } from "../middlewares";
 import { UserService } from "../services/user.service";
 import { IRequest } from "../types/api";
 import multer from "multer";
 import { CommonError } from "../errors/common.error";
+import { AuthUserDto } from "../dto/user/authUser.dto";
+import { UserProfileDto } from "../dto/user/userProfile.dto";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -20,9 +22,14 @@ const upload = multer({ storage: multer.memoryStorage() });
 export class UserController implements interfaces.Controller {
   constructor(@inject(TYPES.UserService) private userService: UserService) {}
 
-  @httpGet("/me", isAuth)
-  public register(@request() req: IRequest): Promise<IUser | null> {
-    return this.userService.getUserById(req.session.userId);
+  @httpGet("/profile", isAuth)
+  public myProfile(@request() req: IRequest): Promise<UserProfileDto> {
+    return this.userService.getUserProfileById(req.session.userId);
+  }
+
+  @httpGet("/:id", isAuth)
+  public userProfile(@requestParam("id") id: string): Promise<UserProfileDto> {
+    return this.userService.getUserProfileById(id);
   }
 
   @httpPost("/upload-profile-picture", isAuth, upload.single("profile-picture"))

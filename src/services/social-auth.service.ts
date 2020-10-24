@@ -13,6 +13,7 @@ import crypto from "crypto";
 import { logger } from "../utils/logger";
 import { v1 } from "uuid";
 import { ImageService } from "./image.service";
+import { AuthUserDto } from "../dto/user/authUser.dto";
 
 export interface SocialProviderData {
   name: string;
@@ -90,7 +91,7 @@ export class SocialAuthService {
   public async registerSocial(
     provider: SocialProvider,
     request: RegisterSocialRequest
-  ): Promise<IUser> {
+  ): Promise<AuthUserDto> {
     const providerData = await this.getSocialData(
       provider,
       request.accessToken,
@@ -103,7 +104,7 @@ export class SocialAuthService {
 
     if (existingUser) {
       // todo: add social link into the database if it doesn't exist yet
-      return existingUser;
+      return AuthUserDto.fromModel(existingUser);
     }
 
     let profilePicPath: string | undefined = undefined;

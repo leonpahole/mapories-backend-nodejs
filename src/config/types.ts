@@ -1,5 +1,5 @@
 const TYPES = {
-  LogService: Symbol.for("LogService"),
+  MaporyService: Symbol.for("MaporyService"),
   UserService: Symbol.for("UserService"),
   MailService: Symbol.for("MailService"),
   ImageService: Symbol.for("ImageService"),

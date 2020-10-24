@@ -20,6 +20,8 @@ import { MailService } from "./mail.service";
 import { UserError } from "../errors/user.error";
 import { CommonError } from "../errors/common.error";
 import { ImageService } from "./image.service";
+import { AuthUserDto } from "../dto/user/authUser.dto";
+import { UserProfileDto } from "../dto/user/userProfile.dto";
 
 @injectable()
 export class UserService {
@@ -28,13 +30,18 @@ export class UserService {
     @inject(TYPES.ImageService) private imageService: ImageService
   ) {}
 
-  public async getUserById(id: string): Promise<IUser | null> {
+  private async getUserById(id: string): Promise<IUser | null> {
     try {
       return await User.findOne({ _id: id }).exec();
     } catch (e) {
       logger.error(e);
       return null;
     }
+  }
+
+  public async getAuthUserById(id: string): Promise<AuthUserDto | null> {
+    const user = await this.getUserById(id);
+    return user ? AuthUserDto.fromModel(user) : null;
   }
 
   public async getUserByEmail(email: string): Promise<IUser | null> {
@@ -49,7 +56,7 @@ export class UserService {
   public async createUser(
     data: RegisterRequest,
     isSocial: boolean = false
-  ): Promise<IUser> {
+  ): Promise<AuthUserDto> {
     let hashedPassword = undefined;
     if (!isSocial) {
       hashedPassword = await argon2.hash(data.password);
@@ -79,7 +86,7 @@ export class UserService {
       await this.sendVerifyMail(user);
     }
 
-    return user;
+    return AuthUserDto.fromModel(user);
   }
 
   private async sendVerifyMail(user: IUser): Promise<boolean> {
@@ -102,7 +109,7 @@ export class UserService {
     });
   }
 
-  public async login(data: LoginRequest): Promise<IUser> {
+  public async login(data: LoginRequest): Promise<AuthUserDto> {
     const user = await this.getUserByEmail(data.email);
     if (!user) {
       throw UserError.WRONG_LOGIN_CREDENTIALS;
@@ -121,14 +128,14 @@ export class UserService {
       throw UserError.ACCOUNT_NOT_VERIFIED;
     }
 
-    return user;
+    return AuthUserDto.fromModel(user);
   }
 
-  public async verifyAccount(data: VerifyAccontRequest): Promise<IUser> {
+  public async verifyAccount(data: VerifyAccontRequest): Promise<AuthUserDto> {
     const user = await this.getUserFromTokenPayload(data.token);
 
     if (user.isVerified) {
-      return user;
+      return AuthUserDto.fromModel(user);
     }
 
     await User.update({ _id: user._id }, { isVerified: true });
@@ -137,7 +144,7 @@ export class UserService {
 
     await this.sendWelcomeMail(user);
 
-    return user;
+    return AuthUserDto.fromModel(user);
   }
 
   public async resendVerifyAccountEmail(
@@ -248,5 +255,14 @@ export class UserService {
       { _id: userId },
       { profilePictureUrl: profilePicturePath }
     );
+  }
+
+  public async getUserProfileById(userId: string): Promise<UserProfileDto> {
+    const user = await this.getUserById(userId);
+    if (!user) {
+      throw CommonError.NOT_FOUND;
+    }
+
+    return UserProfileDto.fromModel(user);
   }
 }

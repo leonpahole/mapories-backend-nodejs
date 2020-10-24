@@ -10,10 +10,10 @@ import {
   response,
   requestParam,
   queryParam,
+  httpGet,
 } from "inversify-express-utils";
 import TYPES from "../config/types";
 import { COOKIE_NAME } from "../constants";
-import { IUser } from "../db/models/user.model";
 import { isAuth, validation } from "../middlewares";
 import { UserService } from "../services/user.service";
 import { IRequest } from "../types/api";
@@ -22,6 +22,7 @@ import {
   SocialAuthService,
   LoginSocialResponse,
 } from "../services/social-auth.service";
+import { AuthUserDto } from "../dto/user/authUser.dto";
 
 export class RegisterRequest {
   @IsDefined({ message: "Please enter your email address!" })
@@ -114,14 +115,14 @@ export class AuthController implements interfaces.Controller {
   ) {}
 
   @httpPost("/register", validation(RegisterRequest))
-  public register(@requestBody() body: RegisterRequest): Promise<IUser> {
+  public register(@requestBody() body: RegisterRequest): Promise<AuthUserDto> {
     return this.userService.createUser(body);
   }
 
   @httpPost("/verify-account", validation(VerifyAccontRequest))
   public async verifyAccount(
     @requestBody() body: VerifyAccontRequest
-  ): Promise<IUser> {
+  ): Promise<AuthUserDto> {
     return this.userService.verifyAccount(body);
   }
 
@@ -139,10 +140,10 @@ export class AuthController implements interfaces.Controller {
   public async login(
     @requestBody() body: LoginRequest,
     @request() req: IRequest
-  ): Promise<IUser> {
+  ): Promise<AuthUserDto> {
     const user = await this.userService.login(body);
 
-    req.session.userId = user._id!.toString();
+    req.session.userId = user.id;
 
     if (!body.rememberMe) {
       req.session.cookie.expires = false;
@@ -151,21 +152,26 @@ export class AuthController implements interfaces.Controller {
     return user;
   }
 
+  @httpGet("/me", isAuth)
+  public myProfile(@request() req: IRequest): Promise<AuthUserDto | null> {
+    return this.userService.getAuthUserById(req.session.userId);
+  }
+
   @httpPost("/logout", isAuth)
   public async logout(
     @request() req: IRequest,
     @response() res: Response
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean }> {
     return new Promise((resolve) =>
       req.session.destroy((err) => {
         res.clearCookie(COOKIE_NAME);
         if (err) {
           logger.error(err);
-          resolve(false);
+          resolve({ success: false });
           return;
         }
 
-        resolve(true);
+        resolve({ success: true });
       })
     );
   }
@@ -213,14 +219,14 @@ export class AuthController implements interfaces.Controller {
     @requestParam("provider") provider: SocialProvider,
     @requestBody() body: RegisterSocialRequest,
     @request() req: IRequest
-  ): Promise<IUser> {
+  ): Promise<AuthUserDto> {
     const loggedInUser = await this.socialAuthService.registerSocial(
       provider,
       body
     );
 
     if (loggedInUser != null) {
-      req.session.userId = loggedInUser._id!.toString();
+      req.session.userId = loggedInUser.id;
     }
 
     return loggedInUser;

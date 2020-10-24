@@ -17,5 +17,6 @@ declare namespace NodeJS {
     MAIL_FROM: string;
     TWITTER_CONSUMER_KEY: string;
     TWITTER_CONSUMER_SECRET: string;
+    PICTURES_BASE_URL: string;
   }
 }

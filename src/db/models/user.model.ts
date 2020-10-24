@@ -1,7 +1,12 @@
-import { prop, getModelForClass } from "@typegoose/typegoose";
+import { prop, getModelForClass, post } from "@typegoose/typegoose";
 import { TimeStamps } from "@typegoose/typegoose/lib/defaultClasses";
 import { Schema } from "mongoose";
 
+@post<IUser>("init", function (doc) {
+  if (doc.profilePictureUrl) {
+    doc.profilePictureUrl = `${process.env.PICTURES_BASE_URL}/${doc.profilePictureUrl}`;
+  }
+})
 export class IUser extends TimeStamps {
   _id?: Schema.Types.ObjectId;
   createdAt?: Date;
@@ -25,15 +30,7 @@ export class IUser extends TimeStamps {
 
 const User = getModelForClass(IUser, {
   schemaOptions: {
-    versionKey: false,
     timestamps: true,
-    toJSON: {
-      transform: (_, ret) => {
-        ret.id = ret._id;
-        delete ret._id;
-        delete ret.password;
-      },
-    },
   },
 });
 
