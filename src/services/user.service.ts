@@ -8,6 +8,7 @@ import {
   ForgotPasswordRequest,
   ResetForgotPasswordRequest,
   ResendVerifyAccontEmailRequest,
+  ChangePasswordRequest,
 } from "../controllers/auth.controller";
 import argon2 from "argon2";
 import jwt from "jsonwebtoken";
@@ -243,8 +244,17 @@ export class UserService {
     data: ResetForgotPasswordRequest
   ): Promise<void> {
     const user = await this.getUserFromTokenPayload(data.token);
+    await this.changePassword(user._id!.toString(), {
+      newPassword: data.newPassword,
+    });
+  }
+
+  public async changePassword(
+    userId: string,
+    data: ChangePasswordRequest
+  ): Promise<void> {
     const hashedPassword = await argon2.hash(data.newPassword);
-    await User.update({ _id: user._id }, { password: hashedPassword });
+    await User.update({ _id: userId }, { password: hashedPassword });
   }
 
   public async uploadProfilePicture(userId: string, file: Express.Multer.File) {

@@ -3,26 +3,26 @@ import { Response } from "express";
 import { inject } from "inversify";
 import {
   controller,
+  httpGet,
   httpPost,
   interfaces,
+  queryParam,
   request,
   requestBody,
-  response,
   requestParam,
-  queryParam,
-  httpGet,
+  response,
 } from "inversify-express-utils";
 import TYPES from "../config/types";
 import { COOKIE_NAME } from "../constants";
+import { AuthUserDto } from "../dto/user/authUser.dto";
 import { isAuth, validation } from "../middlewares";
+import {
+  LoginSocialResponse,
+  SocialAuthService,
+} from "../services/social-auth.service";
 import { UserService } from "../services/user.service";
 import { IRequest } from "../types/api";
 import { logger } from "../utils/logger";
-import {
-  SocialAuthService,
-  LoginSocialResponse,
-} from "../services/social-auth.service";
-import { AuthUserDto } from "../dto/user/authUser.dto";
 
 export class RegisterRequest {
   @IsDefined({ message: "Please enter your email address!" })
@@ -102,6 +102,13 @@ export class RegisterSocialRequest {
   public name: string;
 
   public profilePictureUrl?: string;
+}
+
+export class ChangePasswordRequest {
+  @IsDefined({ message: "Please enter new password!" })
+  @MinLength(4, { message: "Password should be at least 4 letters long!" })
+  @MaxLength(250, { message: "Password shouldn't be longer than 250 letters!" })
+  public newPassword: string;
 }
 
 export type SocialProvider = "facebook" | "google" | "twitter";
@@ -246,5 +253,13 @@ export class AuthController implements interfaces.Controller {
       oAuthVerifier,
       oAuthToken
     );
+  }
+
+  @httpPost("/change-password", validation(ChangePasswordRequest))
+  public async changePassword(
+    @requestBody() body: ChangePasswordRequest,
+    @request() req: IRequest
+  ): Promise<void> {
+    await this.userService.changePassword(req.session.userId, body);
   }
 }
