@@ -23,6 +23,7 @@ import { CommonError } from "../errors/common.error";
 import { ImageService } from "./image.service";
 import { AuthUserDto } from "../dto/user/authUser.dto";
 import { UserProfileDto } from "../dto/user/userProfile.dto";
+import escapeStringRegexp from "escape-string-regexp";
 
 @injectable()
 export class UserService {
@@ -274,5 +275,11 @@ export class UserService {
     }
 
     return UserProfileDto.fromModel(user);
+  }
+
+  public async searchUsers(q: string): Promise<UserProfileDto[]> {
+    const $regex = escapeStringRegexp(q);
+    const users = await User.find({ name: { $regex } });
+    return UserProfileDto.fromModels(users);
   }
 }

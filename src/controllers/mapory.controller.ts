@@ -17,6 +17,7 @@ import { Response } from "express";
 import { MaporyService } from "../services/mapory.service";
 import { IRequest } from "../types/api";
 import { MaporyExcerptDto } from "../dto/mapory/maporyExcerpt.dto";
+import { MaporyDto } from "../dto/mapory/mapory.dto";
 
 export class CreateMaporyRequest {
   @IsDefined()

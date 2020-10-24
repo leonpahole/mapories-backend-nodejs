@@ -12,4 +12,8 @@ export class UserProfileDto {
       profilePictureUrl: user.profilePictureUrl,
     };
   }
+
+  public static fromModels(users: IUser[]): UserProfileDto[] {
+    return users.map((u) => UserProfileDto.fromModel(u));
+  }
 }

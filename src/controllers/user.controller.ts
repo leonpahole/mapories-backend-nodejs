@@ -6,6 +6,7 @@ import {
   httpGet,
   httpPost,
   requestParam,
+  queryParam,
 } from "inversify-express-utils";
 import TYPES from "../config/types";
 import { isAuth } from "../middlewares";
@@ -13,7 +14,6 @@ import { UserService } from "../services/user.service";
 import { IRequest } from "../types/api";
 import multer from "multer";
 import { CommonError } from "../errors/common.error";
-import { AuthUserDto } from "../dto/user/authUser.dto";
 import { UserProfileDto } from "../dto/user/userProfile.dto";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -25,6 +25,11 @@ export class UserController implements interfaces.Controller {
   @httpGet("/profile", isAuth)
   public myProfile(@request() req: IRequest): Promise<UserProfileDto> {
     return this.userService.getUserProfileById(req.session.userId);
+  }
+
+  @httpGet("/search", isAuth)
+  public searchUsers(@queryParam("q") q: string): Promise<UserProfileDto[]> {
+    return this.userService.searchUsers(q);
   }
 
   @httpGet("/:id", isAuth)
