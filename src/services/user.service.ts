@@ -278,7 +278,7 @@ export class UserService {
   }
 
   public async searchUsers(q: string): Promise<UserProfileDto[]> {
-    const $regex = escapeStringRegexp(q);
+    const $regex = new RegExp(escapeStringRegexp(q), "i");
     const users = await User.find({ name: { $regex } });
     return UserProfileDto.fromModels(users);
   }
