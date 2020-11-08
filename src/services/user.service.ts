@@ -1,38 +1,24 @@
-import { injectable, inject } from "inversify";
-import User, { IUser } from "../db/models/user.model";
-import { logger } from "../utils/logger";
-import {
-  RegisterRequest,
-  LoginRequest,
-  VerifyAccontRequest,
-  ForgotPasswordRequest,
-  ResetForgotPasswordRequest,
-  ResendVerifyAccontEmailRequest,
-  ChangePasswordRequest,
-} from "../controllers/auth.controller";
-import argon2 from "argon2";
-import jwt from "jsonwebtoken";
-import {
-  FORGOT_PASSWORD_LINK_EXPIRY_MS,
-  FORGOT_PASSWORD_LINK_EXPIRY_HOURS,
-} from "../constants";
-import TYPES from "../config/types";
-import { MailService } from "./mail.service";
-import { UserError } from "../errors/user.error";
-import { CommonError } from "../errors/common.error";
-import { ImageService } from "./image.service";
-import { AuthUserDto } from "../dto/user/authUser.dto";
-import { UserProfileDto } from "../dto/user/userProfile.dto";
 import escapeStringRegexp from "escape-string-regexp";
+import { inject, injectable } from "inversify";
+import { Types } from "mongoose";
+import TYPES from "../config/types";
+import User, { IUser } from "../db/models/user.model";
+import { UserExcerptDto } from "../dto/user/authUser.dto";
+import { FriendRequestDto } from "../dto/user/friendRequest.dto";
+import { FriendStatus, UserProfileDto } from "../dto/user/userProfile.dto";
+import { CommonError } from "../errors/common.error";
+import { UserError } from "../errors/user.error";
+import { logger } from "../utils/logger";
+import { ImageService } from "./image.service";
+import UserList, { UserListIdPrefix } from "../db/models/userList.model";
+import { UserExtendedRef } from "../db/models/user.extendedRef";
+import { stringToObjectId } from "../utils/strToObjectId";
 
 @injectable()
 export class UserService {
-  constructor(
-    @inject(TYPES.MailService) private mailService: MailService,
-    @inject(TYPES.ImageService) private imageService: ImageService
-  ) {}
+  constructor(@inject(TYPES.ImageService) private imageService: ImageService) {}
 
-  private async getUserById(id: string): Promise<IUser | null> {
+  public async getUserById(id: string): Promise<IUser | null> {
     try {
       return await User.findOne({ _id: id }).exec();
     } catch (e) {
@@ -41,9 +27,9 @@ export class UserService {
     }
   }
 
-  public async getAuthUserById(id: string): Promise<AuthUserDto | null> {
+  public async getAuthUserById(id: string): Promise<UserExcerptDto | null> {
     const user = await this.getUserById(id);
-    return user ? AuthUserDto.fromModel(user) : null;
+    return user ? UserExcerptDto.fromModel(user) : null;
   }
 
   public async getUserByEmail(email: string): Promise<IUser | null> {
@@ -55,231 +41,318 @@ export class UserService {
     }
   }
 
-  public async createUser(
-    data: RegisterRequest,
-    isSocial: boolean = false
-  ): Promise<AuthUserDto> {
-    let hashedPassword = undefined;
-    if (!isSocial) {
-      hashedPassword = await argon2.hash(data.password);
-    }
-
-    let user: IUser | null = null;
-
-    try {
-      user = await User.create({
-        ...data,
-        password: hashedPassword,
-        isVerified: isSocial,
-      });
-    } catch (e) {
-      logger.error("Create user error %o", e);
-
-      if (e.code === 11000) {
-        throw UserError.EMAIL_EXISTS;
-      }
-
-      throw CommonError.UNKNOWN_ERROR;
-    }
-
-    if (isSocial) {
-      await this.sendWelcomeMail(user);
-    } else {
-      await this.sendVerifyMail(user);
-    }
-
-    return AuthUserDto.fromModel(user);
-  }
-
-  private async sendVerifyMail(user: IUser): Promise<boolean> {
-    const token = jwt.sign(
-      {
-        id: user._id,
-      },
-      process.env.JWT_SECRET
-    );
-
-    return await this.mailService.sendVerifyMail(user.email, {
-      link: `${process.env.FRONTEND_URL}/verify-email/${token}`,
-      name: user.name,
-    });
-  }
-
-  private async sendWelcomeMail(user: IUser): Promise<boolean> {
-    return await this.mailService.sendWelcomeMail(user.email, {
-      name: user.name,
-    });
-  }
-
-  public async login(data: LoginRequest): Promise<AuthUserDto> {
-    const user = await this.getUserByEmail(data.email);
-    if (!user) {
-      throw UserError.WRONG_LOGIN_CREDENTIALS;
-    }
-
-    if (user.password == null) {
-      throw UserError.WRONG_LOGIN_CREDENTIALS;
-    }
-
-    const valid = await argon2.verify(user.password, data.password);
-    if (!valid) {
-      throw UserError.WRONG_LOGIN_CREDENTIALS;
-    }
-
-    if (!user.isVerified) {
-      throw UserError.ACCOUNT_NOT_VERIFIED;
-    }
-
-    return AuthUserDto.fromModel(user);
-  }
-
-  public async verifyAccount(data: VerifyAccontRequest): Promise<AuthUserDto> {
-    const user = await this.getUserFromTokenPayload(data.token);
-
-    if (user.isVerified) {
-      return AuthUserDto.fromModel(user);
-    }
-
-    await User.update({ _id: user._id }, { isVerified: true });
-
-    user.isVerified = true;
-
-    await this.sendWelcomeMail(user);
-
-    return AuthUserDto.fromModel(user);
-  }
-
-  public async resendVerifyAccountEmail(
-    body: ResendVerifyAccontEmailRequest
-  ): Promise<void> {
-    const user = await this.getUserByEmail(body.email);
-    if (!user) {
-      return;
-    }
-
-    if (user.isVerified) {
-      return;
-    }
-
-    this.sendVerifyMail(user);
-  }
-
-  private getTokenPayload(token: string): any {
-    let payload: any | null = null;
-
-    try {
-      payload = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (e) {
-      logger.error("Verify token error");
-      logger.error(e);
-      throw UserError.INVALID_TOKEN;
-    }
-
-    if (!payload || !payload.id) {
-      throw UserError.INVALID_TOKEN;
-    }
-
-    return payload;
-  }
-
-  private async getUserFromTokenPayload(token: string): Promise<IUser> {
-    let payload: any = this.getTokenPayload(token);
-
-    const userId: string = payload.id;
-
-    const user = await this.getUserById(userId);
-
-    if (!user) {
-      throw CommonError.NOT_FOUND;
-    }
-
-    return user;
-  }
-
-  public async sendForgotPasswordMail(
-    data: ForgotPasswordRequest
-  ): Promise<void> {
-    const user = await this.getUserByEmail(data.email);
-
-    if (!user) {
-      return;
-    }
-
-    const token = jwt.sign(
-      {
-        id: user._id,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: FORGOT_PASSWORD_LINK_EXPIRY_MS,
-      }
-    );
-
-    const sendMailResult = await this.mailService.sendForgotPasswordMail(
-      user.email,
-      {
-        name: user.name,
-        expiryTimeHours: FORGOT_PASSWORD_LINK_EXPIRY_HOURS,
-        link: `${process.env.FRONTEND_URL}/reset-password/${token}`,
-      }
-    );
-
-    if (!sendMailResult) {
-      throw UserError.FORGOT_PASSWORD_EMAIL_SENDING_ERROR;
-    }
-
-    return;
-  }
-
-  public async isForgotPasswordTokenValid(token: string): Promise<boolean> {
-    try {
-      jwt.verify(token, process.env.JWT_SECRET);
-    } catch (e) {
-      return false;
-    }
-
-    return true;
-  }
-
-  public async resetForgotPassword(
-    data: ResetForgotPasswordRequest
-  ): Promise<void> {
-    const user = await this.getUserFromTokenPayload(data.token);
-    await this.changePassword(user._id!.toString(), {
-      newPassword: data.newPassword,
-    });
-  }
-
-  public async changePassword(
-    userId: string,
-    data: ChangePasswordRequest
-  ): Promise<void> {
-    const hashedPassword = await argon2.hash(data.newPassword);
-    await User.update({ _id: userId }, { password: hashedPassword });
-  }
-
   public async uploadProfilePicture(userId: string, file: Express.Multer.File) {
     const profilePicturePath = await this.imageService.uploadAndCompressProfileImage(
       file
     );
-    await User.update(
+    await User.updateOne(
       { _id: userId },
       { profilePictureUrl: profilePicturePath }
     );
   }
 
-  public async getUserProfileById(userId: string): Promise<UserProfileDto> {
+  public async getUserProfileById(
+    userId: string,
+    currentUserId: string
+  ): Promise<UserProfileDto> {
     const user = await this.getUserById(userId);
     if (!user) {
       throw CommonError.NOT_FOUND;
     }
 
-    return UserProfileDto.fromModel(user);
+    const friendStatus = await this.getFriendshipStatus(currentUserId, userId);
+
+    return UserProfileDto.fromModel({ user, friendStatus });
   }
 
-  public async searchUsers(q: string): Promise<UserProfileDto[]> {
+  public async searchUsers(q: string): Promise<UserExcerptDto[]> {
     const $regex = new RegExp(escapeStringRegexp(q), "i");
     const users = await User.find({ name: { $regex } });
-    return UserProfileDto.fromModels(users);
+    return UserExcerptDto.fromModels(users);
+  }
+
+  private async getFriendshipStatus(
+    meId: string,
+    uId: string,
+    includePendingFromThemButDeclined = false
+  ): Promise<FriendStatus> {
+    let friendStatus = FriendStatus.NONE;
+
+    // todo: possibly optimize this queries?
+    if (meId === uId) {
+      friendStatus = FriendStatus.IS_ME;
+    } else if (await this.areUsersFriends(meId, uId)) {
+      friendStatus = FriendStatus.FRIENDS;
+    } else if (await this.isUserFriendRequestPendingFromThem(meId, uId)) {
+      friendStatus = FriendStatus.PENDING_FROM_THEM;
+    } else if (await this.isUserFriendRequestPendingFromMe(meId, uId)) {
+      friendStatus = FriendStatus.PENDING_FROM_ME;
+    }
+
+    if (includePendingFromThemButDeclined) {
+      if (await this.isUserFriendRequestPendingFromThemOnTheirSide(meId, uId)) {
+        friendStatus = FriendStatus.PENDING_FROM_THEM_BUT_DECLINED;
+      }
+    }
+
+    return friendStatus;
+  }
+
+  private async areUsersFriends(u1Id: string, u2Id: string) {
+    const match = await UserList.findOne(
+      {
+        _id: `${UserListIdPrefix.FRIEND}_${u1Id}`,
+        "users.userId": Types.ObjectId(u2Id),
+      },
+      { _id: 1 }
+    ).exec();
+
+    return match != null;
+  }
+
+  private async isUserFriendRequestPendingFromThem(meId: string, uId: string) {
+    const match = await UserList.findOne(
+      {
+        _id: `${UserListIdPrefix.RECEIVED_REQUESTS}_${meId}`,
+        "users.userId": Types.ObjectId(uId),
+      },
+      { _id: 1 }
+    ).exec();
+
+    return match != null;
+  }
+
+  private async isUserFriendRequestPendingFromThemOnTheirSide(
+    meId: string,
+    uId: string
+  ) {
+    const match = await UserList.findOne(
+      {
+        _id: `${UserListIdPrefix.SENT_REQUESTS}_${uId}`,
+        "users.userId": Types.ObjectId(meId),
+      },
+      { _id: 1 }
+    ).exec();
+
+    return match != null;
+  }
+
+  private async isUserFriendRequestPendingFromMe(meId: string, uId: string) {
+    const match = await UserList.findOne(
+      {
+        _id: `${UserListIdPrefix.SENT_REQUESTS}_${meId}`,
+        "users.userId": Types.ObjectId(uId),
+      },
+      { _id: 1 }
+    ).exec();
+
+    return match != null;
+  }
+
+  public async userIdToUserExtendedRef(
+    userId: string
+  ): Promise<UserExtendedRef | null> {
+    const user = await this.getUserById(userId);
+    if (!user) {
+      return null;
+    }
+
+    return UserExtendedRef.fromUser(user);
+  }
+
+  public async sendFriendRequest(
+    requestingUserId: string,
+    requestedUserId: string
+  ): Promise<{ newStatus: FriendStatus }> {
+    const friendshipStatus = await this.getFriendshipStatus(
+      requestingUserId,
+      requestedUserId,
+      true
+    );
+
+    if (friendshipStatus === FriendStatus.IS_ME) {
+      throw UserError.CANT_BEFRIEND_MYSELF;
+    } else if (friendshipStatus === FriendStatus.FRIENDS) {
+      throw UserError.USERS_ALREADY_FRIENDS;
+    } else if (friendshipStatus === FriendStatus.PENDING_FROM_ME) {
+      throw UserError.REQUEST_ALREADY_SENT_FROM_YOU;
+    } else if (
+      friendshipStatus === FriendStatus.PENDING_FROM_THEM_BUT_DECLINED ||
+      friendshipStatus === FriendStatus.PENDING_FROM_THEM
+    ) {
+      // they sent the request already or they sent it and i declined?
+      // let's count this as accept
+      await this.acceptFriendRequest(requestingUserId, requestedUserId);
+      return { newStatus: FriendStatus.FRIENDS };
+    }
+
+    const requestingUserRef = await this.userIdToUserExtendedRef(
+      requestingUserId
+    );
+    const requestedUserRef = await this.userIdToUserExtendedRef(
+      requestedUserId
+    );
+
+    if (!requestingUserRef || !requestedUserRef) {
+      throw CommonError.NOT_FOUND;
+    }
+
+    // todo: transactional update
+    // add requested user id to sent requests of requesting user
+    await UserList.updateOne(
+      { _id: `${UserListIdPrefix.SENT_REQUESTS}_${requestingUserId}` },
+      { $push: { users: requestedUserRef } },
+      {
+        upsert: true,
+      }
+    );
+
+    // add requesting user id to received requests of requested user
+    await UserList.updateOne(
+      { _id: `${UserListIdPrefix.RECEIVED_REQUESTS}_${requestedUserId}` },
+      { $push: { users: requestingUserRef } },
+      {
+        upsert: true,
+      }
+    );
+
+    return { newStatus: FriendStatus.PENDING_FROM_ME };
+  }
+
+  public async cancelFriendRequest(
+    cancelingUserId: string,
+    requestedUserId: string
+  ): Promise<void> {
+    await UserList.updateOne(
+      { _id: `${UserListIdPrefix.SENT_REQUESTS}_${cancelingUserId}` },
+      {
+        $pull: {
+          users: {
+            userId: stringToObjectId(requestedUserId),
+          },
+        },
+      }
+    );
+
+    await UserList.updateOne(
+      { _id: `${UserListIdPrefix.RECEIVED_REQUESTS}_${requestedUserId}` },
+      {
+        $pull: {
+          users: {
+            userId: stringToObjectId(cancelingUserId),
+          },
+        },
+      }
+    );
+  }
+
+  public async acceptFriendRequest(
+    acceptingUserId: string,
+    requestingUserId: string
+  ): Promise<void> {
+    const requestActuallySent = await this.isUserFriendRequestPendingFromThem(
+      acceptingUserId,
+      requestingUserId
+    );
+
+    if (!requestActuallySent) {
+      // another option: they sent the request but i declined it some time ago
+      const requestSenButDeclinedByMe = await this.isUserFriendRequestPendingFromThemOnTheirSide(
+        acceptingUserId,
+        requestingUserId
+      );
+
+      if (!requestSenButDeclinedByMe) {
+        throw UserError.FRIEND_REQUEST_NOT_FOUND;
+      }
+    }
+
+    await this.cancelFriendRequest(requestingUserId, acceptingUserId);
+
+    const requestingUserRef = await this.userIdToUserExtendedRef(
+      requestingUserId
+    );
+    const acceptingUserRef = await this.userIdToUserExtendedRef(
+      acceptingUserId
+    );
+
+    if (!requestingUserRef || !acceptingUserRef) {
+      throw CommonError.NOT_FOUND;
+    }
+
+    await this.addFriend(requestingUserId, acceptingUserRef);
+    await this.addFriend(acceptingUserId, requestingUserRef);
+  }
+
+  private async addFriend(userId: string, friendRef: UserExtendedRef) {
+    await UserList.updateOne(
+      { _id: `${UserListIdPrefix.FRIEND}_${userId}` },
+      { $push: { users: friendRef } },
+      {
+        upsert: true,
+      }
+    );
+  }
+
+  public async declineFriendRequest(
+    decliningUserId: string,
+    requestingUserId: string
+  ): Promise<void> {
+    // pull only from declining user's side, the other user should have no idea this is happening
+    await UserList.updateOne(
+      { _id: `${UserListIdPrefix.RECEIVED_REQUESTS}_${decliningUserId}` },
+      {
+        $pull: {
+          users: {
+            userId: stringToObjectId(requestingUserId),
+          },
+        },
+      }
+    );
+  }
+
+  public async removeFriendship(
+    removingUserId: string,
+    toRemoveUserId: string
+  ): Promise<void> {
+    await this.removeFriend(removingUserId, toRemoveUserId);
+    await this.removeFriend(toRemoveUserId, removingUserId);
+  }
+
+  private async removeFriend(userId: string, friendId: string) {
+    await UserList.updateOne(
+      { _id: `${UserListIdPrefix.FRIEND}_${userId}` },
+      {
+        $pull: {
+          users: {
+            userId: stringToObjectId(friendId),
+          },
+        },
+      }
+    );
+  }
+
+  public async getFriendRequests(userId: string): Promise<FriendRequestDto[]> {
+    const userList = await UserList.findOne({
+      _id: `${UserListIdPrefix.RECEIVED_REQUESTS}_${userId}`,
+    }).exec();
+
+    if (!userList) {
+      return [];
+    }
+
+    return FriendRequestDto.fromUserExtendedRefs(userList.users);
+  }
+
+  public async getFriends(userId: string): Promise<UserExcerptDto[]> {
+    const userList = await UserList.findOne({
+      _id: `${UserListIdPrefix.FRIEND}_${userId}`,
+    }).exec();
+
+    if (!userList) {
+      return [];
+    }
+
+    return UserExcerptDto.fromUserExtendedRefs(userList.users);
   }
 }

@@ -14,7 +14,7 @@ import {
 } from "inversify-express-utils";
 import TYPES from "../config/types";
 import { COOKIE_NAME } from "../constants";
-import { AuthUserDto } from "../dto/user/authUser.dto";
+import { UserExcerptDto } from "../dto/user/authUser.dto";
 import { isAuth, validation } from "../middlewares";
 import {
   LoginSocialResponse,
@@ -23,6 +23,7 @@ import {
 import { UserService } from "../services/user.service";
 import { IRequest } from "../types/api";
 import { logger } from "../utils/logger";
+import { AuthService } from "../services/auth.service";
 
 export class RegisterRequest {
   @IsDefined({ message: "Please enter your email address!" })
@@ -42,12 +43,12 @@ export class RegisterRequest {
   public profilePictureUrl?: string;
 }
 
-export class VerifyAccontRequest {
+export class VerifyAccountRequest {
   @IsDefined({ message: "Please enter verification token!" })
   public token!: string;
 }
 
-export class ResendVerifyAccontEmailRequest {
+export class ResendVerifyAccountEmailRequest {
   @IsDefined({ message: "Please enter your email address!" })
   @IsEmail({}, { message: "Invalid email address!" })
   public email!: string;
@@ -116,39 +117,42 @@ export type SocialProvider = "facebook" | "google" | "twitter";
 @controller("/auth")
 export class AuthController implements interfaces.Controller {
   constructor(
+    @inject(TYPES.AuthService) private authService: AuthService,
     @inject(TYPES.UserService) private userService: UserService,
     @inject(TYPES.SocialAuthService)
     private socialAuthService: SocialAuthService
   ) {}
 
   @httpPost("/register", validation(RegisterRequest))
-  public register(@requestBody() body: RegisterRequest): Promise<AuthUserDto> {
-    return this.userService.createUser(body);
+  public register(
+    @requestBody() body: RegisterRequest
+  ): Promise<UserExcerptDto> {
+    return this.authService.createUser(body);
   }
 
-  @httpPost("/verify-account", validation(VerifyAccontRequest))
+  @httpPost("/verify-account", validation(VerifyAccountRequest))
   public async verifyAccount(
-    @requestBody() body: VerifyAccontRequest
-  ): Promise<AuthUserDto> {
-    return this.userService.verifyAccount(body);
+    @requestBody() body: VerifyAccountRequest
+  ): Promise<UserExcerptDto> {
+    return this.authService.verifyAccount(body);
   }
 
   @httpPost(
     "/resend-verify-account-email",
-    validation(ResendVerifyAccontEmailRequest)
+    validation(ResendVerifyAccountEmailRequest)
   )
   public async verifyEmail(
-    @requestBody() body: ResendVerifyAccontEmailRequest
+    @requestBody() body: ResendVerifyAccountEmailRequest
   ): Promise<void> {
-    this.userService.resendVerifyAccountEmail(body);
+    this.authService.resendVerifyAccountEmail(body);
   }
 
   @httpPost("/login", validation(LoginRequest))
   public async login(
     @requestBody() body: LoginRequest,
     @request() req: IRequest
-  ): Promise<AuthUserDto> {
-    const user = await this.userService.login(body);
+  ): Promise<UserExcerptDto> {
+    const user = await this.authService.login(body);
 
     req.session.userId = user.id;
 
@@ -160,7 +164,7 @@ export class AuthController implements interfaces.Controller {
   }
 
   @httpGet("/me", isAuth)
-  public myProfile(@request() req: IRequest): Promise<AuthUserDto | null> {
+  public myProfile(@request() req: IRequest): Promise<UserExcerptDto | null> {
     return this.userService.getAuthUserById(req.session.userId);
   }
 
@@ -187,14 +191,14 @@ export class AuthController implements interfaces.Controller {
   public async forgotPassword(
     @requestBody() body: ForgotPasswordRequest
   ): Promise<void> {
-    await this.userService.sendForgotPasswordMail(body);
+    await this.authService.sendForgotPasswordMail(body);
   }
 
   @httpPost("/validate-forgot-password-token", validation(ValidateTokenRequest))
   public async validateForgotPasswordToken(
     @requestBody() body: ValidateTokenRequest
   ): Promise<{ valid: boolean }> {
-    const valid = await this.userService.isForgotPasswordTokenValid(body.token);
+    const valid = await this.authService.isForgotPasswordTokenValid(body.token);
     return { valid };
   }
 
@@ -202,7 +206,7 @@ export class AuthController implements interfaces.Controller {
   public async resetForgotPassword(
     @requestBody() body: ResetForgotPasswordRequest
   ): Promise<void> {
-    await this.userService.resetForgotPassword(body);
+    await this.authService.resetForgotPassword(body);
   }
 
   // logs in the user if they exist; if they don't, then return back this information (so that FE can call create account page)
@@ -226,7 +230,7 @@ export class AuthController implements interfaces.Controller {
     @requestParam("provider") provider: SocialProvider,
     @requestBody() body: RegisterSocialRequest,
     @request() req: IRequest
-  ): Promise<AuthUserDto> {
+  ): Promise<UserExcerptDto> {
     const loggedInUser = await this.socialAuthService.registerSocial(
       provider,
       body
@@ -260,6 +264,6 @@ export class AuthController implements interfaces.Controller {
     @requestBody() body: ChangePasswordRequest,
     @request() req: IRequest
   ): Promise<void> {
-    await this.userService.changePassword(req.session.userId, body);
+    await this.authService.changePassword(req.session.userId, body);
   }
 }

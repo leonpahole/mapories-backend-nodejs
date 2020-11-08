@@ -7,6 +7,7 @@ import {
   httpPost,
   requestParam,
   queryParam,
+  httpDelete,
 } from "inversify-express-utils";
 import TYPES from "../config/types";
 import { isAuth } from "../middlewares";
@@ -14,7 +15,9 @@ import { UserService } from "../services/user.service";
 import { IRequest } from "../types/api";
 import multer from "multer";
 import { CommonError } from "../errors/common.error";
-import { UserProfileDto } from "../dto/user/userProfile.dto";
+import { UserProfileDto, FriendStatus } from "../dto/user/userProfile.dto";
+import { UserExcerptDto } from "../dto/user/authUser.dto";
+import { FriendRequestDto } from "../dto/user/friendRequest.dto";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -22,19 +25,9 @@ const upload = multer({ storage: multer.memoryStorage() });
 export class UserController implements interfaces.Controller {
   constructor(@inject(TYPES.UserService) private userService: UserService) {}
 
-  @httpGet("/profile", isAuth)
-  public myProfile(@request() req: IRequest): Promise<UserProfileDto> {
-    return this.userService.getUserProfileById(req.session.userId);
-  }
-
   @httpGet("/search", isAuth)
-  public searchUsers(@queryParam("q") q: string): Promise<UserProfileDto[]> {
+  public searchUsers(@queryParam("q") q: string): Promise<UserExcerptDto[]> {
     return this.userService.searchUsers(q);
-  }
-
-  @httpGet("/:id", isAuth)
-  public userProfile(@requestParam("id") id: string): Promise<UserProfileDto> {
-    return this.userService.getUserProfileById(id);
   }
 
   @httpPost("/upload-profile-picture", isAuth, upload.single("profile-picture"))
@@ -44,5 +37,73 @@ export class UserController implements interfaces.Controller {
     } else {
       throw CommonError.VALIDATION_ERROR;
     }
+  }
+
+  @httpPost("/send-friend-request/:userId", isAuth)
+  public async sendFriendRequest(
+    @requestParam("userId") userId: string,
+    @request() req: IRequest
+  ): Promise<{ newStatus: FriendStatus }> {
+    return await this.userService.sendFriendRequest(req.session.userId, userId);
+  }
+
+  @httpDelete("/cancel-friend-request/:userId", isAuth)
+  public async cancelFriendRequest(
+    @requestParam("userId") userId: string,
+    @request() req: IRequest
+  ): Promise<void> {
+    await this.userService.cancelFriendRequest(req.session.userId, userId);
+  }
+
+  @httpPost("/accept-friend-request/:userId", isAuth)
+  public async acceptFriendRequest(
+    @requestParam("userId") userId: string,
+    @request() req: IRequest
+  ): Promise<void> {
+    await this.userService.acceptFriendRequest(req.session.userId, userId);
+  }
+
+  @httpDelete("/decline-friend-request/:userId", isAuth)
+  public async declineFriendRequest(
+    @requestParam("userId") userId: string,
+    @request() req: IRequest
+  ): Promise<void> {
+    await this.userService.declineFriendRequest(req.session.userId, userId);
+  }
+
+  @httpDelete("/remove-friendship/:userId", isAuth)
+  public async removeFriendship(
+    @requestParam("userId") userId: string,
+    @request() req: IRequest
+  ): Promise<void> {
+    await this.userService.removeFriendship(req.session.userId, userId);
+  }
+
+  @httpGet("/friend-requests", isAuth)
+  public getMyFriendRequests(
+    @request() req: IRequest
+  ): Promise<FriendRequestDto[]> {
+    return this.userService.getFriendRequests(req.session.userId);
+  }
+
+  @httpGet("/friends", isAuth)
+  public getMyFriends(@request() req: IRequest): Promise<UserExcerptDto[]> {
+    return this.userService.getFriends(req.session.userId);
+  }
+
+  @httpGet("/profile", isAuth)
+  public myProfile(@request() req: IRequest): Promise<UserProfileDto> {
+    return this.userService.getUserProfileById(
+      req.session.userId,
+      req.session.userId
+    );
+  }
+
+  @httpGet("/:id", isAuth)
+  public userProfile(
+    @requestParam("id") id: string,
+    @request() req: IRequest
+  ): Promise<UserProfileDto> {
+    return this.userService.getUserProfileById(id, req.session.userId);
   }
 }

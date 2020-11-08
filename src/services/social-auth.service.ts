@@ -13,7 +13,8 @@ import crypto from "crypto";
 import { logger } from "../utils/logger";
 import { v1 } from "uuid";
 import { ImageService } from "./image.service";
-import { AuthUserDto } from "../dto/user/authUser.dto";
+import { UserExcerptDto } from "../dto/user/authUser.dto";
+import { AuthService } from "./auth.service";
 
 export interface SocialProviderData {
   name: string;
@@ -59,6 +60,7 @@ const TWITTER_API_URL = "https://api.twitter.com";
 export class SocialAuthService {
   constructor(
     @inject(TYPES.UserService) private userService: UserService,
+    @inject(TYPES.AuthService) private authService: AuthService,
     @inject(TYPES.ImageService) private imageService: ImageService
   ) {}
 
@@ -91,7 +93,7 @@ export class SocialAuthService {
   public async registerSocial(
     provider: SocialProvider,
     request: RegisterSocialRequest
-  ): Promise<AuthUserDto> {
+  ): Promise<UserExcerptDto> {
     const providerData = await this.getSocialData(
       provider,
       request.accessToken,
@@ -104,7 +106,7 @@ export class SocialAuthService {
 
     if (existingUser) {
       // todo: add social link into the database if it doesn't exist yet
-      return AuthUserDto.fromModel(existingUser);
+      return UserExcerptDto.fromModel(existingUser);
     }
 
     let profilePicPath: string | undefined = undefined;
@@ -115,7 +117,7 @@ export class SocialAuthService {
       );
     }
 
-    return await this.userService.createUser(
+    return await this.authService.createUser(
       {
         name: request.name,
         email: providerData.email,

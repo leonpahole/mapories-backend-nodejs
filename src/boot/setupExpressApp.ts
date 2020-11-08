@@ -12,7 +12,7 @@ import s from "connect-redis";
 
 import "../controllers/auth.controller";
 import "../controllers/user.controller";
-import "../controllers/mapory.controller";
+import "../controllers/post.controller";
 
 export const setupExpressApp = (
   redis: IORedis.Redis,
