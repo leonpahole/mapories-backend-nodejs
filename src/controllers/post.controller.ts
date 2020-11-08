@@ -19,6 +19,8 @@ import {
   requestBody,
   requestParam,
   response,
+  httpPatch,
+  httpDelete,
 } from "inversify-express-utils";
 import TYPES from "../config/types";
 import { PostDto } from "../dto/post/post.dto";
@@ -52,7 +54,7 @@ class MaporyPostRequestPart {
   visitDate!: Date;
 }
 
-export class CreatePostRequest {
+export class CreateOrUpdatePostRequest {
   @IsDefined()
   public content!: string;
 
@@ -62,7 +64,7 @@ export class CreatePostRequest {
   public mapory?: MaporyPostRequestPart;
 }
 
-export class CreateCommentRequest {
+export class CreateOrUpdateCommentRequest {
   @IsDefined()
   public content!: string;
 }
@@ -131,12 +133,29 @@ export class PostController implements interfaces.Controller {
     return post;
   }
 
-  @httpPost("/", isAuth, validation(CreatePostRequest))
+  @httpPost("/", isAuth, validation(CreateOrUpdatePostRequest))
   public createPost(
-    @requestBody() body: CreatePostRequest,
+    @requestBody() body: CreateOrUpdatePostRequest,
     @request() req: IRequest
   ): Promise<PostDto> {
     return this.postService.createPost(req.session.userId, body);
+  }
+
+  @httpPatch("/:id", isAuth, validation(CreateOrUpdatePostRequest))
+  public updatePost(
+    @requestParam("id") id: string,
+    @requestBody() body: CreateOrUpdatePostRequest,
+    @request() req: IRequest
+  ): Promise<void> {
+    return this.postService.updatePost(id, req.session.userId, body);
+  }
+
+  @httpDelete("/:id", isAuth)
+  public deletePost(
+    @requestParam("id") id: string,
+    @request() req: IRequest
+  ): Promise<void> {
+    return this.postService.deletePost(id, req.session.userId);
   }
 
   @httpPost("/like/:id", isAuth)
@@ -155,17 +174,49 @@ export class PostController implements interfaces.Controller {
     return this.postService.unlikePost(id, req.session.userId);
   }
 
-  @httpPost("/:id/comment", isAuth, validation(CreateCommentRequest))
-  public commentMapory(
+  @httpPost("/:id/comment", isAuth, validation(CreateOrUpdateCommentRequest))
+  public commentPost(
     @requestParam("id") id: string,
-    @requestBody() body: CreateCommentRequest,
+    @requestBody() body: CreateOrUpdateCommentRequest,
     @request() req: IRequest
   ): Promise<CommentDto> {
     return this.postService.commentPost(id, body, req.session.userId);
   }
 
+  @httpPatch(
+    "/:postId/comment/:commentId",
+    isAuth,
+    validation(CreateOrUpdateCommentRequest)
+  )
+  public updateComment(
+    @requestParam("postId") postId: string,
+    @requestParam("commentId") commentId: string,
+    @requestBody() body: CreateOrUpdateCommentRequest,
+    @request() req: IRequest
+  ): Promise<void> {
+    return this.postService.updateComment(
+      postId,
+      commentId,
+      body,
+      req.session.userId
+    );
+  }
+
+  @httpDelete("/:postId/comment/:commentId", isAuth)
+  public deleteComment(
+    @requestParam("postId") postId: string,
+    @requestParam("commentId") commentId: string,
+    @request() req: IRequest
+  ): Promise<void> {
+    return this.postService.deleteComment(
+      postId,
+      commentId,
+      req.session.userId
+    );
+  }
+
   @httpGet("/:id/comment", isAuth)
-  public getMaporyComments(
+  public getPostComments(
     @requestParam("id") id: string,
     @request() req: IRequest,
     @queryParam("pageNum") pageNum: number,

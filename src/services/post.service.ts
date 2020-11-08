@@ -1,7 +1,7 @@
 import { injectable, inject } from "inversify";
 import {
-  CreatePostRequest,
-  CreateCommentRequest,
+  CreateOrUpdatePostRequest,
+  CreateOrUpdateCommentRequest,
 } from "../controllers/post.controller";
 import Post, { PostMapory } from "../db/models/post.model";
 import { PostDto } from "../dto/post/post.dto";
@@ -15,6 +15,7 @@ import { stringToObjectId } from "../utils/strToObjectId";
 import { CommentDto, CommentWithLikesInfo } from "../dto/comment.dto";
 import { PaginatedResponse } from "../dto/PaginatedResponse";
 import { MaporyMapItemDto } from "../dto/post/maporyMapItem.dto";
+import { PostError } from "../errors/post.error";
 
 const POSTS_DEFAULT_PAGE_SIZE = 10;
 const POSTS_MAX_PAGE_SIZE = 50;
@@ -102,7 +103,7 @@ export class PostService {
 
   public async createPost(
     authorId: string,
-    data: CreatePostRequest
+    data: CreateOrUpdatePostRequest
   ): Promise<PostDto> {
     const author = await this.userService.getAuthUserById(authorId);
 
@@ -137,6 +138,68 @@ export class PostService {
     });
   }
 
+  private async hasUserAuthoredPost(
+    postId: string,
+    userId: string
+  ): Promise<boolean> {
+    const post = await Post.findOne(
+      {
+        _id: stringToObjectId(postId),
+        "author.userId": stringToObjectId(userId),
+      },
+      { _id: 1 }
+    );
+
+    console.log(postId);
+    console.log(userId);
+
+    return post != null;
+  }
+
+  public async updatePost(
+    postId: string,
+    currentUserId: string,
+    data: CreateOrUpdatePostRequest
+  ): Promise<void> {
+    const userAuthoredPost = await this.hasUserAuthoredPost(
+      postId,
+      currentUserId
+    );
+
+    if (!userAuthoredPost) {
+      throw PostError.NOT_MY_POST;
+    }
+
+    let postMapory: PostMapory | undefined = undefined;
+    if (data.mapory) {
+      postMapory = {
+        location: [[data.mapory.latitude, data.mapory.longitude]],
+        placeName: data.mapory.placeName,
+        visitDate: data.mapory.visitDate,
+        rating: data.mapory.rating,
+      };
+    }
+
+    await Post.updateOne(
+      { _id: postId, "author.userId": currentUserId },
+      {
+        content: data.content,
+        mapory: postMapory,
+      }
+    );
+  }
+
+  public async deletePost(postId: string, userId: string): Promise<void> {
+    const userAuthoredPost = await this.hasUserAuthoredPost(postId, userId);
+
+    if (!userAuthoredPost) {
+      throw PostError.NOT_MY_POST;
+    }
+
+    await Post.deleteOne({ _id: postId, "author.userId": userId });
+    await CommentList.deleteOne({ postId: stringToObjectId(postId) });
+  }
+
   public async likePost(postId: string, userId: string): Promise<void> {
     await Post.updateOne(
       { _id: postId },
@@ -158,7 +221,7 @@ export class PostService {
 
   public async commentPost(
     postId: string,
-    body: CreateCommentRequest,
+    body: CreateOrUpdateCommentRequest,
     commenterId: string
   ): Promise<CommentDto> {
     const postExists = await this.postExists(postId);
@@ -193,6 +256,50 @@ export class PostService {
       likesAmount: 0,
       myLike: false,
     });
+  }
+
+  public async updateComment(
+    postId: string,
+    commentId: string,
+    body: CreateOrUpdateCommentRequest,
+    userId: string
+  ): Promise<void> {
+    await CommentList.updateOne(
+      {
+        postId: stringToObjectId(postId),
+        comments: {
+          $elemMatch: {
+            _id: stringToObjectId(commentId),
+            "author.userId": stringToObjectId(userId),
+          },
+        },
+      },
+      {
+        $set: {
+          "comments.$.content": body.content,
+        },
+      }
+    );
+  }
+
+  public async deleteComment(
+    postId: string,
+    commentId: string,
+    userId: string
+  ): Promise<void> {
+    await CommentList.updateOne(
+      {
+        postId: stringToObjectId(postId),
+      },
+      {
+        $pull: {
+          comments: {
+            _id: stringToObjectId(commentId),
+            "author.userId": stringToObjectId(userId),
+          },
+        },
+      }
+    );
   }
 
   public async getPostComments(
