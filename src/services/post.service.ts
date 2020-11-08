@@ -12,7 +12,15 @@ import { UserService } from "./user.service";
 import TYPES from "../config/types";
 import CommentList, { CommentListItem } from "../db/models/commentList.model";
 import { stringToObjectId } from "../utils/strToObjectId";
-import { CommentDto } from "../dto/comment.dto";
+import { CommentDto, CommentWithLikesInfo } from "../dto/comment.dto";
+import { PaginatedResponse } from "../dto/PaginatedResponse";
+import { MaporyMapItemDto } from "../dto/post/maporyMapItem.dto";
+
+const POSTS_DEFAULT_PAGE_SIZE = 10;
+const POSTS_MAX_PAGE_SIZE = 50;
+
+const COMMENTS_DEFAULT_PAGE_SIZE = 10;
+const COMMENTS_MAX_PAGE_SIZE = 50;
 
 @injectable()
 export class PostService {
@@ -32,8 +40,10 @@ export class PostService {
   public async getPostsForUser(
     userId: string,
     currentUserId: string,
-    postType: string | null = null
-  ): Promise<PostDto[]> {
+    pageNumber: number,
+    pageSize: number = POSTS_DEFAULT_PAGE_SIZE,
+    postType: string | undefined = undefined
+  ): Promise<PaginatedResponse<PostDto>> {
     let matchType = {};
     if (postType === "post") {
       matchType = {
@@ -45,12 +55,32 @@ export class PostService {
       };
     }
 
+    pageSize = Math.min(pageSize, POSTS_MAX_PAGE_SIZE);
+
     const posts = await Post.aggregate([
       { $match: { "author.userId": Types.ObjectId(userId), ...matchType } },
+      { $sort: { createdAt: -1 } },
+      { $skip: pageNumber * pageSize },
+      { $limit: pageSize + 1 },
       this.likesPipeline(currentUserId),
     ]).exec();
 
-    return PostDto.fromModels(posts);
+    const moreAvailable = posts.length > pageSize;
+    if (moreAvailable) {
+      posts.pop();
+    }
+
+    const postDtos = PostDto.fromModels(posts);
+    return new PaginatedResponse<PostDto>(postDtos, moreAvailable);
+  }
+
+  public async getMapDataForUser(userId: string): Promise<MaporyMapItemDto[]> {
+    const posts = await Post.find({
+      "author.userId": Types.ObjectId(userId),
+      mapory: { $exists: true },
+    });
+
+    return MaporyMapItemDto.fromModels(posts);
   }
 
   public async getPost(
@@ -105,17 +135,6 @@ export class PostService {
       myLike: false,
       likesAmount: 0,
     });
-  }
-
-  private async hasUserLikedPost(
-    postId: string,
-    userId: string
-  ): Promise<boolean> {
-    const post = await Post.findOne({
-      _id: postId,
-      likes: Types.ObjectId(userId),
-    }).exec();
-    return post != null;
   }
 
   public async likePost(postId: string, userId: string): Promise<void> {
@@ -180,43 +199,42 @@ export class PostService {
     postId: string,
     currentUserId: string,
     pageNumber: number,
-    pageSize: number
-  ): Promise<CommentDto[]> {
+    pageSize: number = COMMENTS_DEFAULT_PAGE_SIZE
+  ): Promise<PaginatedResponse<CommentDto>> {
+    pageSize = Math.min(pageSize, COMMENTS_MAX_PAGE_SIZE);
+
     const commentList = await CommentList.aggregate([
       { $match: { postId: Types.ObjectId(postId) } },
+      { $unwind: "$comments" },
+      { $sort: { "comments.createdAt": -1 } },
+      { $skip: pageNumber * pageSize },
+      { $limit: pageSize + 1 },
       {
-        $project: {
-          comments: {
-            $map: {
-              input: "$comments",
-              as: "comment",
-              in: {
-                $mergeObjects: [
-                  "$$comment",
-                  {
-                    likesAmount: {
-                      $size: { $ifNull: ["$$comment.likes", []] },
-                    },
-                    myLike: {
-                      $in: [
-                        Types.ObjectId(currentUserId),
-                        { $ifNull: ["$$comment.likes", []] },
-                      ],
-                    },
-                  },
-                ],
-              },
-            },
+        $addFields: {
+          "comments.myLike": {
+            $in: [
+              Types.ObjectId(currentUserId),
+              { $ifNull: ["$comments.likes", []] },
+            ],
+          },
+          "comments.likesAmount": {
+            $size: { $ifNull: ["$comments.likes", []] },
           },
         },
       },
     ]).exec();
 
-    if (!commentList || commentList.length === 0) {
-      return [];
+    const comments: CommentWithLikesInfo[] = commentList.map(
+      (cl: any) => cl.comments
+    );
+
+    const moreAvailable = comments.length > pageSize;
+    if (moreAvailable) {
+      comments.pop();
     }
 
-    return CommentDto.fromModels(commentList[0].comments || []);
+    const commentDtos = CommentDto.fromModels(comments);
+    return new PaginatedResponse<CommentDto>(commentDtos, moreAvailable);
   }
 
   public async likeComment(

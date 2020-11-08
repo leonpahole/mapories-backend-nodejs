@@ -26,6 +26,8 @@ import { isAuth, validation } from "../middlewares";
 import { PostService } from "../services/post.service";
 import { IRequest } from "../types/api";
 import { CommentDto } from "../dto/comment.dto";
+import { PaginatedResponse } from "../dto/PaginatedResponse";
+import { MaporyMapItemDto } from "../dto/post/maporyMapItem.dto";
 
 class MaporyPostRequestPart {
   @IsOptional()
@@ -72,11 +74,15 @@ export class PostController implements interfaces.Controller {
   @httpGet("/my", isAuth)
   public getMyPosts(
     @request() req: IRequest,
+    @queryParam("pageNum") pageNum: number,
+    @queryParam("pageSize") pageSize?: number,
     @queryParam("type") postType?: string
-  ): Promise<PostDto[]> {
+  ): Promise<PaginatedResponse<PostDto>> {
     return this.postService.getPostsForUser(
       req.session.userId,
       req.session.userId,
+      pageNum,
+      pageSize,
       postType
     );
   }
@@ -85,13 +91,29 @@ export class PostController implements interfaces.Controller {
   public getUsersPosts(
     @requestParam("userId") userId: string,
     @request() req: IRequest,
+    @queryParam("pageNum") pageNum: number,
+    @queryParam("pageSize") pageSize?: number,
     @queryParam("type") postType?: string
-  ): Promise<PostDto[]> {
+  ): Promise<PaginatedResponse<PostDto>> {
     return this.postService.getPostsForUser(
       userId,
       req.session.userId,
+      pageNum,
+      pageSize,
       postType
     );
+  }
+
+  @httpGet("/my-mapories", isAuth)
+  public getMyMapData(@request() req: IRequest): Promise<MaporyMapItemDto[]> {
+    return this.postService.getMapDataForUser(req.session.userId);
+  }
+
+  @httpGet("/my-mapories/:userId", isAuth)
+  public getUsersMapData(
+    @requestParam("userId") userId: string
+  ): Promise<MaporyMapItemDto[]> {
+    return this.postService.getMapDataForUser(userId);
   }
 
   @httpGet("/:id", isAuth)
@@ -139,7 +161,6 @@ export class PostController implements interfaces.Controller {
     @requestBody() body: CreateCommentRequest,
     @request() req: IRequest
   ): Promise<CommentDto> {
-    console.log("heyy");
     return this.postService.commentPost(id, body, req.session.userId);
   }
 
@@ -148,13 +169,13 @@ export class PostController implements interfaces.Controller {
     @requestParam("id") id: string,
     @request() req: IRequest,
     @queryParam("pageNum") pageNum: number,
-    @queryParam("pageSize") pageSize: number
-  ): Promise<CommentDto[]> {
+    @queryParam("pageSize") pageSize?: number
+  ): Promise<PaginatedResponse<CommentDto>> {
     return this.postService.getPostComments(
       id,
       req.session.userId,
-      pageNum || 1,
-      Math.min(pageSize || 10, 10)
+      pageNum,
+      pageSize
     );
   }
 
