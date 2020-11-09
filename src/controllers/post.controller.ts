@@ -106,6 +106,19 @@ export class PostController implements interfaces.Controller {
     );
   }
 
+  @httpGet("/feed", isAuth)
+  public getFeed(
+    @request() req: IRequest,
+    @queryParam("pageNum") pageNum: number,
+    @queryParam("pageSize") pageSize?: number
+  ): Promise<PaginatedResponse<PostDto>> {
+    return this.postService.getFeedForUser(
+      req.session.userId,
+      pageNum,
+      pageSize
+    );
+  }
+
   @httpGet("/my-mapories", isAuth)
   public getMyMapData(@request() req: IRequest): Promise<MaporyMapItemDto[]> {
     return this.postService.getMapDataForUser(req.session.userId);

@@ -6,7 +6,7 @@ import {
 import Post, { PostMapory } from "../db/models/post.model";
 import { PostDto } from "../dto/post/post.dto";
 import { logger } from "../utils/logger";
-import { Types } from "mongoose";
+import { Types, Schema } from "mongoose";
 import { CommonError } from "../errors/common.error";
 import { UserService } from "./user.service";
 import TYPES from "../config/types";
@@ -22,6 +22,14 @@ const POSTS_MAX_PAGE_SIZE = 50;
 
 const COMMENTS_DEFAULT_PAGE_SIZE = 10;
 const COMMENTS_MAX_PAGE_SIZE = 50;
+
+const FEED_DEFAULT_PAGE_SIZE = 10;
+const FEED_MAX_PAGE_SIZE = 50;
+
+interface GetPostsCriteria {
+  type?: string;
+  userIds?: Types.ObjectId[];
+}
 
 @injectable()
 export class PostService {
@@ -45,21 +53,57 @@ export class PostService {
     pageSize: number = POSTS_DEFAULT_PAGE_SIZE,
     postType: string | undefined = undefined
   ): Promise<PaginatedResponse<PostDto>> {
-    let matchType = {};
-    if (postType === "post") {
-      matchType = {
-        mapory: null,
-      };
-    } else if (postType === "mapory") {
-      matchType = {
-        mapory: { $exists: true },
-      };
-    }
-
     pageSize = Math.min(pageSize, POSTS_MAX_PAGE_SIZE);
 
+    return await this.getPostsByCriteria(currentUserId, pageNumber, pageSize, {
+      type: postType,
+      userIds: [Types.ObjectId(userId)],
+    });
+  }
+
+  public async getFeedForUser(
+    currentUserId: string,
+    pageNumber: number,
+    pageSize: number = FEED_DEFAULT_PAGE_SIZE
+  ): Promise<PaginatedResponse<PostDto>> {
+    pageSize = Math.min(pageSize, FEED_MAX_PAGE_SIZE);
+
+    const friends = await this.userService.getFriendIds(currentUserId);
+    friends.push(Types.ObjectId(currentUserId));
+
+    return await this.getPostsByCriteria(currentUserId, pageNumber, pageSize, {
+      userIds: friends,
+    });
+  }
+
+  private async getPostsByCriteria(
+    currentUserId: string,
+    pageNumber: number,
+    pageSize: number,
+    criteria: GetPostsCriteria
+  ) {
+    // user ids criteria
+    let matchUserIds = {};
+    if (criteria.userIds) {
+      matchUserIds = { "author.userId": { $in: criteria.userIds } };
+    }
+
+    // type criteria
+    let matchPostType = {};
+    if (criteria.type) {
+      if (criteria.type === "post") {
+        matchPostType = {
+          mapory: null,
+        };
+      } else if (criteria.type === "mapory") {
+        matchPostType = {
+          mapory: { $exists: true },
+        };
+      }
+    }
+
     const posts = await Post.aggregate([
-      { $match: { "author.userId": Types.ObjectId(userId), ...matchType } },
+      { $match: { ...matchUserIds, ...matchPostType } },
       { $sort: { createdAt: -1 } },
       { $skip: pageNumber * pageSize },
       { $limit: pageSize + 1 },

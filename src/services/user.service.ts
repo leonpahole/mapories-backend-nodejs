@@ -1,6 +1,6 @@
 import escapeStringRegexp from "escape-string-regexp";
 import { inject, injectable } from "inversify";
-import { Types } from "mongoose";
+import { Types, Schema } from "mongoose";
 import TYPES from "../config/types";
 import User, { IUser } from "../db/models/user.model";
 import { UserExcerptDto } from "../dto/user/authUser.dto";
@@ -354,5 +354,17 @@ export class UserService {
     }
 
     return UserExcerptDto.fromUserExtendedRefs(userList.users);
+  }
+
+  public async getFriendIds(userId: string): Promise<Types.ObjectId[]> {
+    const userList = await UserList.findOne({
+      _id: `${UserListIdPrefix.FRIEND}_${userId}`,
+    }).exec();
+
+    if (!userList) {
+      return [];
+    }
+
+    return userList.users.map((u) => Types.ObjectId(u.userId.toString()));
   }
 }
