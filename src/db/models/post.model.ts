@@ -1,4 +1,4 @@
-import { prop, getModelForClass, arrayProp, Ref } from "@typegoose/typegoose";
+import { prop, getModelForClass, Ref } from "@typegoose/typegoose";
 import { TimeStamps } from "@typegoose/typegoose/lib/defaultClasses";
 import { Schema } from "mongoose";
 import User from "./user.model";
@@ -8,7 +8,7 @@ export class PostMapory {
   @prop({ required: true })
   public placeName!: string;
 
-  @arrayProp({ items: Array, required: true })
+  @prop({ type: Array, required: true })
   location!: [[number, number]];
 
   @prop({ required: true })

@@ -21,13 +21,13 @@ import { MailService } from "./mail.service";
 import { UserError } from "../errors/user.error";
 import { CommonError } from "../errors/common.error";
 import { UserExcerptDto } from "../dto/user/authUser.dto";
-import { UserService } from "./user.service";
+import { UserUtilsService } from "./userUtils.service";
 
 @injectable()
 export class AuthService {
   constructor(
     @inject(TYPES.MailService) private mailService: MailService,
-    @inject(TYPES.UserService) private userService: UserService
+    @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService
   ) {}
 
   public async createUser(
@@ -87,7 +87,7 @@ export class AuthService {
   }
 
   public async login(data: LoginRequest): Promise<UserExcerptDto> {
-    const user = await this.userService.getUserByEmail(data.email);
+    const user = await this.userUtilsService.getUserByEmail(data.email);
     if (!user) {
       throw UserError.WRONG_LOGIN_CREDENTIALS;
     }
@@ -129,7 +129,7 @@ export class AuthService {
   public async resendVerifyAccountEmail(
     body: ResendVerifyAccountEmailRequest
   ): Promise<void> {
-    const user = await this.userService.getUserByEmail(body.email);
+    const user = await this.userUtilsService.getUserByEmail(body.email);
     if (!user) {
       return;
     }
@@ -164,7 +164,7 @@ export class AuthService {
 
     const userId: string = payload.id;
 
-    const user = await this.userService.getUserById(userId);
+    const user = await this.userUtilsService.getUserById(userId);
 
     if (!user) {
       throw CommonError.NOT_FOUND;
@@ -176,7 +176,7 @@ export class AuthService {
   public async sendForgotPasswordMail(
     data: ForgotPasswordRequest
   ): Promise<void> {
-    const user = await this.userService.getUserByEmail(data.email);
+    const user = await this.userUtilsService.getUserByEmail(data.email);
 
     if (!user) {
       return;

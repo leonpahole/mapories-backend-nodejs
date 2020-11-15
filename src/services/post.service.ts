@@ -6,7 +6,7 @@ import {
 import Post, { PostMapory } from "../db/models/post.model";
 import { PostDto } from "../dto/post/post.dto";
 import { logger } from "../utils/logger";
-import { Types, Schema } from "mongoose";
+import { Types } from "mongoose";
 import { CommonError } from "../errors/common.error";
 import { UserService } from "./user.service";
 import TYPES from "../config/types";
@@ -16,6 +16,8 @@ import { CommentDto, CommentWithLikesInfo } from "../dto/comment.dto";
 import { PaginatedResponse } from "../dto/PaginatedResponse";
 import { MaporyMapItemDto } from "../dto/post/maporyMapItem.dto";
 import { PostError } from "../errors/post.error";
+import { UserUtilsService } from "./userUtils.service";
+import { FriendService } from "./friend.service";
 
 const POSTS_DEFAULT_PAGE_SIZE = 10;
 const POSTS_MAX_PAGE_SIZE = 50;
@@ -33,7 +35,11 @@ interface GetPostsCriteria {
 
 @injectable()
 export class PostService {
-  constructor(@inject(TYPES.UserService) private userService: UserService) {}
+  constructor(
+    @inject(TYPES.UserService) private userService: UserService,
+    @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService,
+    @inject(TYPES.FriendService) private friendService: FriendService
+  ) {}
 
   private likesPipeline(userId: string) {
     return {
@@ -68,7 +74,7 @@ export class PostService {
   ): Promise<PaginatedResponse<PostDto>> {
     pageSize = Math.min(pageSize, FEED_MAX_PAGE_SIZE);
 
-    const friends = await this.userService.getFriendIds(currentUserId);
+    const friends = await this.friendService.getFriendIds(currentUserId);
     friends.push(Types.ObjectId(currentUserId));
 
     return await this.getPostsByCriteria(currentUserId, pageNumber, pageSize, {
@@ -194,9 +200,6 @@ export class PostService {
       { _id: 1 }
     );
 
-    console.log(postId);
-    console.log(userId);
-
     return post != null;
   }
 
@@ -273,7 +276,7 @@ export class PostService {
       throw CommonError.NOT_FOUND;
     }
 
-    const commenterRef = await this.userService.userIdToUserExtendedRef(
+    const commenterRef = await this.userUtilsService.userIdToUserExtendedRef(
       commenterId
     );
     if (!commenterRef) {

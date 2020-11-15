@@ -18,12 +18,16 @@ import { CommonError } from "../errors/common.error";
 import { UserProfileDto, FriendStatus } from "../dto/user/userProfile.dto";
 import { UserExcerptDto } from "../dto/user/authUser.dto";
 import { FriendRequestDto } from "../dto/user/friendRequest.dto";
+import { FriendService } from "../services/friend.service";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 @controller("/user")
 export class UserController implements interfaces.Controller {
-  constructor(@inject(TYPES.UserService) private userService: UserService) {}
+  constructor(
+    @inject(TYPES.UserService) private userService: UserService,
+    @inject(TYPES.FriendService) private friendService: FriendService
+  ) {}
 
   @httpGet("/search", isAuth)
   public searchUsers(@queryParam("q") q: string): Promise<UserExcerptDto[]> {
@@ -44,7 +48,10 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<{ newStatus: FriendStatus }> {
-    return await this.userService.sendFriendRequest(req.session.userId, userId);
+    return await this.friendService.sendFriendRequest(
+      req.session.userId,
+      userId
+    );
   }
 
   @httpDelete("/cancel-friend-request/:userId", isAuth)
@@ -52,7 +59,7 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<void> {
-    await this.userService.cancelFriendRequest(req.session.userId, userId);
+    await this.friendService.cancelFriendRequest(req.session.userId, userId);
   }
 
   @httpPost("/accept-friend-request/:userId", isAuth)
@@ -60,7 +67,7 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<void> {
-    await this.userService.acceptFriendRequest(req.session.userId, userId);
+    await this.friendService.acceptFriendRequest(req.session.userId, userId);
   }
 
   @httpDelete("/decline-friend-request/:userId", isAuth)
@@ -68,7 +75,7 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<void> {
-    await this.userService.declineFriendRequest(req.session.userId, userId);
+    await this.friendService.declineFriendRequest(req.session.userId, userId);
   }
 
   @httpDelete("/remove-friendship/:userId", isAuth)
@@ -76,19 +83,19 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<void> {
-    await this.userService.removeFriendship(req.session.userId, userId);
+    await this.friendService.removeFriendship(req.session.userId, userId);
   }
 
   @httpGet("/friend-requests", isAuth)
   public getMyFriendRequests(
     @request() req: IRequest
   ): Promise<FriendRequestDto[]> {
-    return this.userService.getFriendRequests(req.session.userId);
+    return this.friendService.getFriendRequests(req.session.userId);
   }
 
   @httpGet("/friends", isAuth)
   public getMyFriends(@request() req: IRequest): Promise<UserExcerptDto[]> {
-    return this.userService.getFriends(req.session.userId);
+    return this.friendService.getFriends(req.session.userId);
   }
 
   @httpGet("/profile", isAuth)

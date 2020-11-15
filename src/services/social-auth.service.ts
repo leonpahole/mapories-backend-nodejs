@@ -6,7 +6,6 @@ import {
 } from "../controllers/auth.controller";
 import { SocialAuthError } from "../errors/social-auth.error";
 import TYPES from "../config/types";
-import { UserService } from "./user.service";
 import { IUser } from "../db/models/user.model";
 import axios from "axios";
 import crypto from "crypto";
@@ -15,6 +14,7 @@ import { v1 } from "uuid";
 import { ImageService } from "./image.service";
 import { UserExcerptDto } from "../dto/user/authUser.dto";
 import { AuthService } from "./auth.service";
+import { UserUtilsService } from "./userUtils.service";
 
 export interface SocialProviderData {
   name: string;
@@ -59,7 +59,7 @@ const TWITTER_API_URL = "https://api.twitter.com";
 @injectable()
 export class SocialAuthService {
   constructor(
-    @inject(TYPES.UserService) private userService: UserService,
+    @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService,
     @inject(TYPES.AuthService) private authService: AuthService,
     @inject(TYPES.ImageService) private imageService: ImageService
   ) {}
@@ -74,7 +74,7 @@ export class SocialAuthService {
       request.accessTokenSecret
     );
 
-    const existingUser = await this.userService.getUserByEmail(
+    const existingUser = await this.userUtilsService.getUserByEmail(
       providerData.email
     );
 
@@ -100,7 +100,7 @@ export class SocialAuthService {
       request.accessTokenSecret
     );
 
-    const existingUser = await this.userService.getUserByEmail(
+    const existingUser = await this.userUtilsService.getUserByEmail(
       providerData.email
     );
 

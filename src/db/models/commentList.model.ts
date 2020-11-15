@@ -1,4 +1,4 @@
-import { prop, getModelForClass, arrayProp, Ref } from "@typegoose/typegoose";
+import { prop, getModelForClass, Ref } from "@typegoose/typegoose";
 import { TimeStamps } from "@typegoose/typegoose/lib/defaultClasses";
 import { UserExtendedRef } from "./user.extendedRef";
 import { Schema } from "mongoose";
@@ -26,7 +26,7 @@ export class ICommentList extends TimeStamps {
   @prop({ required: true, unique: true })
   postId: Schema.Types.ObjectId;
 
-  @arrayProp({ items: CommentListItem })
+  @prop({ type: CommentListItem })
   public comments: CommentListItem[];
 }
 

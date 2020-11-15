@@ -1,5 +1,5 @@
 import { InversifyExpressServer } from "inversify-express-utils";
-import { ContainerConfigLoader } from "../config/container";
+import { container } from "../config/container";
 import helmet from "helmet";
 import cors from "cors";
 import express, { json } from "express";
@@ -9,17 +9,17 @@ import { __prod__ } from "../config/constants";
 import { notFoundHandler, errorHandler } from "../middlewares";
 import IORedis from "ioredis";
 import s from "connect-redis";
+import { InversifySocketServer } from "inversify-socket-utils";
 
 import "../controllers/auth.controller";
 import "../controllers/user.controller";
 import "../controllers/post.controller";
+import "../controllers/chat.controller";
 
 export const setupExpressApp = (
   redis: IORedis.Redis,
   RedisStore: s.RedisStore
 ) => {
-  const container = ContainerConfigLoader.Load();
-
   // start the server
   const server = new InversifyExpressServer(container);
 
@@ -62,7 +62,22 @@ export const setupExpressApp = (
   serverInstance.use(errorHandler);
 
   const port = process.env.PORT || 4000;
-  serverInstance.listen(port);
+  const httpServer = serverInstance.listen(port);
+
+  const socketServer = new InversifySocketServer(
+    container,
+    require("socket.io")(httpServer, {
+      cors: {
+        origin: process.env.FRONTEND_URL,
+        credentials: true,
+      },
+    })
+  );
+  socketServer.build();
+
+  container
+    .bind<InversifySocketServer>("InversifySocketServer")
+    .toConstantValue(socketServer);
 
   return port;
 };

@@ -1,4 +1,4 @@
-import { prop, getModelForClass, arrayProp } from "@typegoose/typegoose";
+import { prop, getModelForClass } from "@typegoose/typegoose";
 import { TimeStamps } from "@typegoose/typegoose/lib/defaultClasses";
 import { UserExtendedRef } from "./user.extendedRef";
 
@@ -15,7 +15,7 @@ export class IUserList extends TimeStamps {
   createdAt?: Date;
   updatedAt?: Date;
 
-  @arrayProp({ _id: false, items: UserExtendedRef })
+  @prop({ _id: false, type: UserExtendedRef })
   public users: UserExtendedRef[];
 }
 
