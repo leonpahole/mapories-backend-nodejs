@@ -17,7 +17,6 @@ import { ChatService } from "../services/chat.service";
 import { ChatroomDto } from "../dto/chatroom/chatroom.dto";
 import { ChatroomMessageDto } from "../dto/chatroom/chatroomMessage.dto";
 import { PaginatedResponse } from "../dto/PaginatedResponse";
-import { CommentDto } from "../dto/comment.dto";
 
 export class CreateChatroomRequest {
   @IsDefined()
@@ -31,7 +30,7 @@ export class ChatController implements interfaces.Controller {
 
   @httpGet("/rooms", isAuth)
   public getUsersChatrooms(@request() req: IRequest): Promise<ChatroomDto[]> {
-    return this.chatService.getUsersChatrooms(req.session.userId);
+    return this.chatService.getUsersChatrooms(req.userId);
   }
 
   @httpGet("/rooms/:id/messages", isAuth)
@@ -43,7 +42,7 @@ export class ChatController implements interfaces.Controller {
   ): Promise<PaginatedResponse<ChatroomMessageDto>> {
     return this.chatService.getChatroomMessages(
       id,
-      req.session.userId,
+      req.userId,
       Number(skip),
       Number(pageSize)
     );
@@ -54,6 +53,6 @@ export class ChatController implements interfaces.Controller {
     @request() req: IRequest,
     @requestBody() body: CreateChatroomRequest
   ): Promise<ChatroomDto> {
-    return this.chatService.createChatroom(req.session.userId, body);
+    return this.chatService.createChatroom(req.userId, body);
   }
 }

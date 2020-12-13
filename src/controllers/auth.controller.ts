@@ -13,17 +13,17 @@ import {
   response,
 } from "inversify-express-utils";
 import TYPES from "../config/types";
-import { COOKIE_NAME } from "../constants";
+import { REFRESH_TOKEN_COOKIE_NAME } from "../config/constants";
 import { UserExcerptDto } from "../dto/user/authUser.dto";
 import { isAuth, validation } from "../middlewares";
 import {
-  LoginSocialResponse,
   SocialAuthService,
+  SocialProviderData,
 } from "../services/social-auth.service";
 import { UserService } from "../services/user.service";
 import { IRequest } from "../types/api";
-import { logger } from "../utils/logger";
 import { AuthService } from "../services/auth.service";
+import { JwtService } from "../services/jwt.service";
 
 export class RegisterRequest {
   @IsDefined({ message: "Please enter your email address!" })
@@ -66,8 +66,6 @@ export class LoginRequest {
 
   @IsDefined({ message: "Please enter your password!" })
   public password: string;
-
-  public rememberMe: boolean = false;
 }
 
 export class ForgotPasswordRequest {
@@ -112,6 +110,16 @@ export class ChangePasswordRequest {
   public newPassword: string;
 }
 
+class LoginResponse {
+  accessToken: string;
+  user: UserExcerptDto;
+}
+
+class LoginSocialResponse {
+  existingUserLoginData: LoginResponse | null;
+  nonExistingUser: SocialProviderData | null;
+}
+
 export type SocialProvider = "facebook" | "google" | "twitter";
 
 @controller("/auth")
@@ -119,6 +127,7 @@ export class AuthController implements interfaces.Controller {
   constructor(
     @inject(TYPES.AuthService) private authService: AuthService,
     @inject(TYPES.UserService) private userService: UserService,
+    @inject(TYPES.JwtService) private jwtService: JwtService,
     @inject(TYPES.SocialAuthService)
     private socialAuthService: SocialAuthService
   ) {}
@@ -127,7 +136,7 @@ export class AuthController implements interfaces.Controller {
   public register(
     @requestBody() body: RegisterRequest
   ): Promise<UserExcerptDto> {
-    return this.authService.createUser(body);
+    return this.authService.register(body);
   }
 
   @httpPost("/verify-account", validation(VerifyAccountRequest))
@@ -150,41 +159,43 @@ export class AuthController implements interfaces.Controller {
   @httpPost("/login", validation(LoginRequest))
   public async login(
     @requestBody() body: LoginRequest,
-    @request() req: IRequest
-  ): Promise<UserExcerptDto> {
+    @response() res: Response
+  ): Promise<LoginResponse> {
     const user = await this.authService.login(body);
 
-    req.session.userId = user.id;
+    this.jwtService.sendRefreshToken(res, user);
+    const accessToken = this.jwtService.createAccessToken(user);
 
-    if (!body.rememberMe) {
-      req.session.cookie.expires = false;
-    }
+    return {
+      accessToken,
+      user: UserExcerptDto.fromModel(user),
+    };
+  }
 
-    return user;
+  @httpPost("/refresh-token")
+  public async refreshToken(
+    @request() req: IRequest,
+    @response() res: Response
+  ): Promise<LoginResponse> {
+    const { token, user } = await this.jwtService.refreshToken(req, res);
+
+    return {
+      accessToken: token,
+      user,
+    };
   }
 
   @httpGet("/me", isAuth)
   public myProfile(@request() req: IRequest): Promise<UserExcerptDto | null> {
-    return this.userService.getAuthUserById(req.session.userId);
+    return this.userService.getAuthUserById(req.userId);
   }
 
   @httpPost("/logout", isAuth)
   public async logout(
-    @request() req: IRequest,
     @response() res: Response
   ): Promise<{ success: boolean }> {
-    return new Promise((resolve) =>
-      req.session.destroy((err) => {
-        res.clearCookie(COOKIE_NAME);
-        if (err) {
-          logger.error(err);
-          resolve({ success: false });
-          return;
-        }
-
-        resolve({ success: true });
-      })
-    );
+    res.clearCookie(REFRESH_TOKEN_COOKIE_NAME);
+    return { success: true };
   }
 
   @httpPost("/forgot-password", validation(ForgotPasswordRequest))
@@ -214,33 +225,44 @@ export class AuthController implements interfaces.Controller {
   public async loginSocial(
     @requestParam("provider") provider: SocialProvider,
     @requestBody() body: LoginSocialRequest,
-    @request() req: IRequest
+    @request() res: Response
   ): Promise<LoginSocialResponse> {
     const response = await this.socialAuthService.loginSocial(provider, body);
+    let existingUserLoginData: LoginResponse | null = null;
 
     if (response.existingUser != null) {
-      req.session.userId = response.existingUser._id!.toString();
+      this.jwtService.sendRefreshToken(res, response.existingUser);
+      const accessToken = this.jwtService.createAccessToken(
+        response.existingUser
+      );
+
+      existingUserLoginData = {
+        accessToken,
+        user: UserExcerptDto.fromModel(response.existingUser),
+      };
     }
 
-    return response;
+    return {
+      nonExistingUser: response.nonExistingUser,
+      existingUserLoginData,
+    };
   }
 
   @httpPost("/register-social/:provider", validation(RegisterSocialRequest))
   public async registerSocial(
     @requestParam("provider") provider: SocialProvider,
     @requestBody() body: RegisterSocialRequest,
-    @request() req: IRequest
-  ): Promise<UserExcerptDto> {
-    const loggedInUser = await this.socialAuthService.registerSocial(
-      provider,
-      body
-    );
+    @request() res: Response
+  ): Promise<LoginResponse> {
+    const user = await this.socialAuthService.registerSocial(provider, body);
 
-    if (loggedInUser != null) {
-      req.session.userId = loggedInUser.id;
-    }
+    this.jwtService.sendRefreshToken(res, user);
+    const accessToken = this.jwtService.createAccessToken(user);
 
-    return loggedInUser;
+    return {
+      accessToken,
+      user: UserExcerptDto.fromModel(user),
+    };
   }
 
   @httpPost("/twitter/request_token")
@@ -264,6 +286,6 @@ export class AuthController implements interfaces.Controller {
     @requestBody() body: ChangePasswordRequest,
     @request() req: IRequest
   ): Promise<void> {
-    await this.authService.changePassword(req.session.userId, body);
+    await this.authService.changePassword(req.userId, body);
   }
 }

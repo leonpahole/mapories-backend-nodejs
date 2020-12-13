@@ -11,7 +11,9 @@ import { Response } from "express";
 import { inject } from "inversify";
 import {
   controller,
+  httpDelete,
   httpGet,
+  httpPatch,
   httpPost,
   interfaces,
   queryParam,
@@ -19,17 +21,16 @@ import {
   requestBody,
   requestParam,
   response,
-  httpPatch,
-  httpDelete,
 } from "inversify-express-utils";
 import TYPES from "../config/types";
+import { PaginatedResponse } from "../dto/PaginatedResponse";
+import { MaporyMapItemDto } from "../dto/post/maporyMapItem.dto";
 import { PostDto } from "../dto/post/post.dto";
 import { isAuth, validation } from "../middlewares";
 import { PostService } from "../services/post.service";
 import { IRequest } from "../types/api";
-import { CommentDto } from "../dto/comment.dto";
-import { PaginatedResponse } from "../dto/PaginatedResponse";
-import { MaporyMapItemDto } from "../dto/post/maporyMapItem.dto";
+import multer from "multer";
+import { parse } from "path";
 
 class MaporyPostRequestPart {
   @IsOptional()
@@ -69,6 +70,8 @@ export class CreateOrUpdateCommentRequest {
   public content!: string;
 }
 
+const upload = multer({ storage: multer.memoryStorage() });
+
 @controller("/post")
 export class PostController implements interfaces.Controller {
   constructor(@inject(TYPES.PostService) private postService: PostService) {}
@@ -81,8 +84,8 @@ export class PostController implements interfaces.Controller {
     @queryParam("type") postType?: string
   ): Promise<PaginatedResponse<PostDto>> {
     return this.postService.getPostsForUser(
-      req.session.userId,
-      req.session.userId,
+      req.userId,
+      req.userId,
       pageNum,
       pageSize,
       postType
@@ -99,7 +102,7 @@ export class PostController implements interfaces.Controller {
   ): Promise<PaginatedResponse<PostDto>> {
     return this.postService.getPostsForUser(
       userId,
-      req.session.userId,
+      req.userId,
       pageNum,
       pageSize,
       postType
@@ -112,16 +115,12 @@ export class PostController implements interfaces.Controller {
     @queryParam("pageNum") pageNum: number,
     @queryParam("pageSize") pageSize?: number
   ): Promise<PaginatedResponse<PostDto>> {
-    return this.postService.getFeedForUser(
-      req.session.userId,
-      pageNum,
-      pageSize
-    );
+    return this.postService.getFeedForUser(req.userId, pageNum, pageSize);
   }
 
   @httpGet("/my-mapories", isAuth)
   public getMyMapData(@request() req: IRequest): Promise<MaporyMapItemDto[]> {
-    return this.postService.getMapDataForUser(req.session.userId);
+    return this.postService.getMapDataForUser(req.userId);
   }
 
   @httpGet("/my-mapories/:userId", isAuth)
@@ -137,7 +136,7 @@ export class PostController implements interfaces.Controller {
     @response() res: Response,
     @request() req: IRequest
   ): Promise<PostDto> {
-    const post = await this.postService.getPost(id, req.session.userId);
+    const post = await this.postService.getPost(id, req.userId);
     if (!post) {
       res.statusCode = 404;
       throw new Error("Not found");
@@ -151,16 +150,37 @@ export class PostController implements interfaces.Controller {
     @requestBody() body: CreateOrUpdatePostRequest,
     @request() req: IRequest
   ): Promise<PostDto> {
-    return this.postService.createPost(req.session.userId, body);
+    return this.postService.createPost(req.userId, body);
+  }
+
+  @httpPatch("/update-pictures/:id", isAuth, upload.array("pictures"))
+  public updatePicturesForPost(
+    @requestParam("id") id: string,
+    @request() req: IRequest
+  ): Promise<string[]> {
+    let deletedPictures: string[] = [];
+    if (req.body?.deletedPictures) {
+      const parsedDeletedPictures = JSON.parse(req.body.deletedPictures);
+      if (parsedDeletedPictures) {
+        deletedPictures = parsedDeletedPictures as string[];
+      }
+    }
+
+    return this.postService.updatePostPictures(
+      id,
+      req.files as Express.Multer.File[],
+      deletedPictures
+    );
   }
 
   @httpPatch("/:id", isAuth, validation(CreateOrUpdatePostRequest))
-  public updatePost(
+  public async updatePost(
     @requestParam("id") id: string,
     @requestBody() body: CreateOrUpdatePostRequest,
     @request() req: IRequest
-  ): Promise<void> {
-    return this.postService.updatePost(id, req.session.userId, body);
+  ): Promise<PostDto | null> {
+    await this.postService.updatePost(id, req.userId, body);
+    return this.postService.getPost(id, req.userId);
   }
 
   @httpDelete("/:id", isAuth)
@@ -168,7 +188,7 @@ export class PostController implements interfaces.Controller {
     @requestParam("id") id: string,
     @request() req: IRequest
   ): Promise<void> {
-    return this.postService.deletePost(id, req.session.userId);
+    return this.postService.deletePost(id, req.userId);
   }
 
   @httpPost("/like/:id", isAuth)
@@ -176,7 +196,7 @@ export class PostController implements interfaces.Controller {
     @requestParam("id") id: string,
     @request() req: IRequest
   ): Promise<void> {
-    return this.postService.likePost(id, req.session.userId);
+    return this.postService.likePost(id, req.userId);
   }
 
   @httpPost("/unlike/:id", isAuth)
@@ -184,84 +204,6 @@ export class PostController implements interfaces.Controller {
     @requestParam("id") id: string,
     @request() req: IRequest
   ): Promise<void> {
-    return this.postService.unlikePost(id, req.session.userId);
-  }
-
-  @httpPost("/:id/comment", isAuth, validation(CreateOrUpdateCommentRequest))
-  public commentPost(
-    @requestParam("id") id: string,
-    @requestBody() body: CreateOrUpdateCommentRequest,
-    @request() req: IRequest
-  ): Promise<CommentDto> {
-    return this.postService.commentPost(id, body, req.session.userId);
-  }
-
-  @httpPatch(
-    "/:postId/comment/:commentId",
-    isAuth,
-    validation(CreateOrUpdateCommentRequest)
-  )
-  public updateComment(
-    @requestParam("postId") postId: string,
-    @requestParam("commentId") commentId: string,
-    @requestBody() body: CreateOrUpdateCommentRequest,
-    @request() req: IRequest
-  ): Promise<void> {
-    return this.postService.updateComment(
-      postId,
-      commentId,
-      body,
-      req.session.userId
-    );
-  }
-
-  @httpDelete("/:postId/comment/:commentId", isAuth)
-  public deleteComment(
-    @requestParam("postId") postId: string,
-    @requestParam("commentId") commentId: string,
-    @request() req: IRequest
-  ): Promise<void> {
-    return this.postService.deleteComment(
-      postId,
-      commentId,
-      req.session.userId
-    );
-  }
-
-  @httpGet("/:id/comment", isAuth)
-  public getPostComments(
-    @requestParam("id") id: string,
-    @request() req: IRequest,
-    @queryParam("pageNum") pageNum: number,
-    @queryParam("pageSize") pageSize?: number
-  ): Promise<PaginatedResponse<CommentDto>> {
-    return this.postService.getPostComments(
-      id,
-      req.session.userId,
-      pageNum,
-      pageSize
-    );
-  }
-
-  @httpPost("/:postId/comment/:commentId/like", isAuth)
-  public likeComment(
-    @requestParam("postId") postId: string,
-    @requestParam("commentId") commentId: string,
-    @request() req: IRequest
-  ): Promise<void> {
-    return this.postService.likeComment(postId, commentId, req.session.userId);
-  }
-
-  @httpPost("/:postId/comment/:commentId/unlike", isAuth)
-  public unlikeComment(
-    @requestParam("postId") postId: string,
-    @requestParam("commentId") commentId: string,
-    @request() req: IRequest
-  ): Promise<void> {
-    return this.postService.unlikeComment(
-      postId,
-      commentId,
-      req.session.userId
-    );
+    return this.postService.unlikePost(id, req.userId);
   }
 }

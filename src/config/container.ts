@@ -15,9 +15,12 @@ import { SocketSubscriber } from "../socket/redis/socketSubscriber";
 import { FriendService } from "../services/friend.service";
 import { UserUtilsService } from "../services/userUtils.service";
 import { ChatSocketService } from "../socket/socket-service/chat.socket-service";
+import { JwtService } from "../services/jwt.service";
+import { CommentService } from "../services/comment.service";
 
 const container = new Container();
 container.bind<AuthService>(TYPES.AuthService).to(AuthService);
+container.bind<JwtService>(TYPES.JwtService).to(JwtService);
 container.bind<UserService>(TYPES.UserService).to(UserService);
 container.bind<UserUtilsService>(TYPES.UserUtilsService).to(UserUtilsService);
 container.bind<FriendService>(TYPES.FriendService).to(FriendService);
@@ -27,6 +30,7 @@ container
   .bind<SocialAuthService>(TYPES.SocialAuthService)
   .to(SocialAuthService);
 container.bind<PostService>(TYPES.PostService).to(PostService);
+container.bind<CommentService>(TYPES.CommentService).to(CommentService);
 container.bind<ChatService>(TYPES.ChatService).to(ChatService);
 container.bind<SocketService>(TYPES.SocketService).to(SocketService);
 container

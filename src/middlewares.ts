@@ -7,6 +7,7 @@ import { StatusCodes as HttpStatus } from "http-status-codes";
 import { CommonError } from "./errors/common.error";
 import { AppError } from "./errors/AppError";
 import { logger } from "./utils/logger";
+import { verify } from "jsonwebtoken";
 
 export const notFoundHandler = (
   _: Request,
@@ -68,10 +69,24 @@ export const validation = (dtoClass: any) => {
 };
 
 export const isAuth = (req: IRequest, res: Response, next: NextFunction) => {
-  if (!req.session.userId) {
-    res.status(HttpStatus.UNAUTHORIZED);
-    throw CommonError.REQUIRES_AUTH_ERROR;
+  const authorization = req.headers["authorization"] as string;
+
+  if (authorization) {
+    try {
+      const token = authorization.split(" ")[1];
+      console.log("IS AUTH");
+      console.log(token);
+      const payload = verify(token, process.env.ACCESS_TOKEN_SECRET) as any;
+      if (payload.userId) {
+        req.userId = payload.userId as string;
+        return next();
+      }
+    } catch (err) {
+      logger.error("Jwt token error");
+      logger.error(err);
+    }
   }
 
-  return next();
+  res.status(HttpStatus.UNAUTHORIZED);
+  throw CommonError.REQUIRES_AUTH_ERROR;
 };

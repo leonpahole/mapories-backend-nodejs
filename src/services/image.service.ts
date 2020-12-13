@@ -6,7 +6,11 @@ import { ImageUploadError } from "../errors/imageUpload.error";
 import { logger } from "../utils/logger";
 import { v4 } from "uuid";
 import path from "path";
-import { PROFILE_PIC_UPLOADS_DIR, PROFILE_PIC_PUBLIC_DIR } from "../constants";
+import {
+  PROFILE_PIC_UPLOADS_DIR,
+  PROFILE_PIC_PUBLIC_DIR,
+  POSTS_PIC_PUBLIC_DIR,
+} from "../config/constants";
 import "multer";
 
 @injectable()
@@ -110,5 +114,26 @@ export class ImageService {
       logger.error(e);
       throw ImageUploadError.WRITE_ERROR;
     }
+  }
+
+  public async uploadPostImages(
+    pictures: Express.Multer.File[]
+  ): Promise<string[]> {
+    const paths: string[] = [];
+    for (let p of pictures) {
+      const path = await this.uploadPostImage(p);
+      paths.push(path);
+    }
+
+    return paths;
+  }
+
+  private async uploadPostImage(
+    pictureData: Express.Multer.File
+  ): Promise<string> {
+    const fileName = `${v4()}_${pictureData.originalname}`;
+    const uploadPath = path.join(POSTS_PIC_PUBLIC_DIR, fileName);
+    await this.uploadImage(pictureData, uploadPath);
+    return uploadPath;
   }
 }

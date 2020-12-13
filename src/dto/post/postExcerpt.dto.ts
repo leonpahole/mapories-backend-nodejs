@@ -20,6 +20,8 @@ export class PostExcerptDto {
     rating?: number;
   };
 
+  images: PostImage[];
+
   likes: {
     likesAmount: number;
     myLike: boolean;
@@ -30,6 +32,9 @@ export class PostExcerptDto {
       id: post._id!.toString(),
       createdAt: post.createdAt!,
       content: post.content,
+      images: post.picturesUris
+        ? post.picturesUris.map((p) => ({ url: p }))
+        : [],
       mapory: undefined,
       likes: {
         likesAmount: post.likesAmount,
@@ -56,3 +61,7 @@ export class PostExcerptDto {
     return posts.map((p) => this.fromModel(p));
   }
 }
+
+type PostImage = {
+  url: string;
+};

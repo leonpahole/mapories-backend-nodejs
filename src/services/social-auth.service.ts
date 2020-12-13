@@ -12,7 +12,6 @@ import crypto from "crypto";
 import { logger } from "../utils/logger";
 import { v1 } from "uuid";
 import { ImageService } from "./image.service";
-import { UserExcerptDto } from "../dto/user/authUser.dto";
 import { AuthService } from "./auth.service";
 import { UserUtilsService } from "./userUtils.service";
 
@@ -47,11 +46,6 @@ interface TwitterUserData {
   profile_image_url_https: string;
 }
 
-export interface LoginSocialResponse {
-  existingUser: IUser | null;
-  nonExistingUser: SocialProviderData | null;
-}
-
 const FB_API_URL = "https://graph.facebook.com";
 const GOOGLE_API_URL = "https://www.googleapis.com/oauth2/v1";
 const TWITTER_API_URL = "https://api.twitter.com";
@@ -67,7 +61,10 @@ export class SocialAuthService {
   public async loginSocial(
     provider: SocialProvider,
     request: LoginSocialRequest
-  ): Promise<LoginSocialResponse> {
+  ): Promise<{
+    existingUser: IUser | null;
+    nonExistingUser: SocialProviderData | null;
+  }> {
     const providerData = await this.getSocialData(
       provider,
       request.accessToken,
@@ -93,7 +90,7 @@ export class SocialAuthService {
   public async registerSocial(
     provider: SocialProvider,
     request: RegisterSocialRequest
-  ): Promise<UserExcerptDto> {
+  ): Promise<IUser> {
     const providerData = await this.getSocialData(
       provider,
       request.accessToken,
@@ -106,7 +103,7 @@ export class SocialAuthService {
 
     if (existingUser) {
       // todo: add social link into the database if it doesn't exist yet
-      return UserExcerptDto.fromModel(existingUser);
+      return existingUser;
     }
 
     let profilePicPath: string | undefined = undefined;
@@ -117,14 +114,10 @@ export class SocialAuthService {
       );
     }
 
-    return await this.authService.createUser(
-      {
-        name: request.name,
-        email: providerData.email,
-        password: "",
-        profilePictureUrl: profilePicPath,
-      },
-      true
+    return await this.authService.registerSocial(
+      request.name,
+      providerData.email,
+      profilePicPath
     );
   }
 

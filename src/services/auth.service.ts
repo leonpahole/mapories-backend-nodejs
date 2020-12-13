@@ -15,7 +15,7 @@ import jwt from "jsonwebtoken";
 import {
   FORGOT_PASSWORD_LINK_EXPIRY_MS,
   FORGOT_PASSWORD_LINK_EXPIRY_HOURS,
-} from "../constants";
+} from "../config/constants";
 import TYPES from "../config/types";
 import { MailService } from "./mail.service";
 import { UserError } from "../errors/user.error";
@@ -30,10 +30,10 @@ export class AuthService {
     @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService
   ) {}
 
-  public async createUser(
+  private async createUser(
     data: RegisterRequest,
     isSocial: boolean = false
-  ): Promise<UserExcerptDto> {
+  ): Promise<IUser> {
     let hashedPassword = undefined;
     if (!isSocial) {
       hashedPassword = await argon2.hash(data.password);
@@ -46,6 +46,7 @@ export class AuthService {
         ...data,
         password: hashedPassword,
         isVerified: isSocial,
+        refreshTokenVersion: 0,
       });
     } catch (e) {
       logger.error("Create user error %o", e);
@@ -63,7 +64,28 @@ export class AuthService {
       await this.sendVerifyMail(user);
     }
 
+    return user;
+  }
+
+  public async register(data: RegisterRequest): Promise<UserExcerptDto> {
+    const user = await this.createUser(data);
     return UserExcerptDto.fromModel(user);
+  }
+
+  public async registerSocial(
+    name: string,
+    email: string,
+    profilePictureUrl: string | undefined
+  ): Promise<IUser> {
+    return await this.createUser(
+      {
+        name,
+        email,
+        profilePictureUrl,
+        password: "",
+      },
+      true
+    );
   }
 
   private async sendVerifyMail(user: IUser): Promise<boolean> {
@@ -86,7 +108,7 @@ export class AuthService {
     });
   }
 
-  public async login(data: LoginRequest): Promise<UserExcerptDto> {
+  public async login(data: LoginRequest): Promise<IUser> {
     const user = await this.userUtilsService.getUserByEmail(data.email);
     if (!user) {
       throw UserError.WRONG_LOGIN_CREDENTIALS;
@@ -105,7 +127,7 @@ export class AuthService {
       throw UserError.ACCOUNT_NOT_VERIFIED;
     }
 
-    return UserExcerptDto.fromModel(user);
+    return user;
   }
 
   public async verifyAccount(

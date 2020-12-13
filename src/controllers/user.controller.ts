@@ -37,7 +37,7 @@ export class UserController implements interfaces.Controller {
   @httpPost("/upload-profile-picture", isAuth, upload.single("profile-picture"))
   public async uploadProfilePicture(@request() req: IRequest): Promise<void> {
     if (req.file) {
-      await this.userService.uploadProfilePicture(req.session.userId, req.file);
+      await this.userService.uploadProfilePicture(req.userId, req.file);
     } else {
       throw CommonError.VALIDATION_ERROR;
     }
@@ -48,10 +48,7 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<{ newStatus: FriendStatus }> {
-    return await this.friendService.sendFriendRequest(
-      req.session.userId,
-      userId
-    );
+    return await this.friendService.sendFriendRequest(req.userId, userId);
   }
 
   @httpDelete("/cancel-friend-request/:userId", isAuth)
@@ -59,7 +56,7 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<void> {
-    await this.friendService.cancelFriendRequest(req.session.userId, userId);
+    await this.friendService.cancelFriendRequest(req.userId, userId);
   }
 
   @httpPost("/accept-friend-request/:userId", isAuth)
@@ -67,7 +64,7 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<void> {
-    await this.friendService.acceptFriendRequest(req.session.userId, userId);
+    await this.friendService.acceptFriendRequest(req.userId, userId);
   }
 
   @httpDelete("/decline-friend-request/:userId", isAuth)
@@ -75,7 +72,7 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<void> {
-    await this.friendService.declineFriendRequest(req.session.userId, userId);
+    await this.friendService.declineFriendRequest(req.userId, userId);
   }
 
   @httpDelete("/remove-friendship/:userId", isAuth)
@@ -83,27 +80,24 @@ export class UserController implements interfaces.Controller {
     @requestParam("userId") userId: string,
     @request() req: IRequest
   ): Promise<void> {
-    await this.friendService.removeFriendship(req.session.userId, userId);
+    await this.friendService.removeFriendship(req.userId, userId);
   }
 
   @httpGet("/friend-requests", isAuth)
   public getMyFriendRequests(
     @request() req: IRequest
   ): Promise<FriendRequestDto[]> {
-    return this.friendService.getFriendRequests(req.session.userId);
+    return this.friendService.getFriendRequests(req.userId);
   }
 
   @httpGet("/friends", isAuth)
   public getMyFriends(@request() req: IRequest): Promise<UserExcerptDto[]> {
-    return this.friendService.getFriends(req.session.userId);
+    return this.friendService.getFriends(req.userId);
   }
 
   @httpGet("/profile", isAuth)
   public myProfile(@request() req: IRequest): Promise<UserProfileDto> {
-    return this.userService.getUserProfileById(
-      req.session.userId,
-      req.session.userId
-    );
+    return this.userService.getUserProfileById(req.userId, req.userId);
   }
 
   @httpGet("/:id", isAuth)
@@ -111,6 +105,6 @@ export class UserController implements interfaces.Controller {
     @requestParam("id") id: string,
     @request() req: IRequest
   ): Promise<UserProfileDto> {
-    return this.userService.getUserProfileById(id, req.session.userId);
+    return this.userService.getUserProfileById(id, req.userId);
   }
 }

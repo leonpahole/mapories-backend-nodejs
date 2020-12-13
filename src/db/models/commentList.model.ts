@@ -20,11 +20,14 @@ export class CommentListItem extends TimeStamps {
   public likes?: Ref<typeof User>[];
 }
 
-export class ICommentList extends TimeStamps {
-  _id?: Schema.Types.ObjectId;
+export const CommentListIdPrefix = {
+  POST: "post",
+  COMMENT: "comm",
+};
 
-  @prop({ required: true, unique: true })
-  postId: Schema.Types.ObjectId;
+export class ICommentList extends TimeStamps {
+  @prop()
+  public _id: string; // prefix + id of whatever we comment on
 
   @prop({ type: CommentListItem })
   public comments: CommentListItem[];

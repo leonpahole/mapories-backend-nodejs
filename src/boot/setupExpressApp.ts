@@ -1,25 +1,20 @@
-import { InversifyExpressServer } from "inversify-express-utils";
-import { container } from "../config/container";
-import helmet from "helmet";
 import cors from "cors";
 import express, { json } from "express";
-import session from "express-session";
-import { COOKIE_NAME, PUBLIC_DIR } from "../constants";
-import { __prod__ } from "../config/constants";
-import { notFoundHandler, errorHandler } from "../middlewares";
-import IORedis from "ioredis";
-import s from "connect-redis";
+import helmet from "helmet";
+import { InversifyExpressServer } from "inversify-express-utils";
 import { InversifySocketServer } from "inversify-socket-utils";
-
+import { PUBLIC_DIR } from "../config/constants";
+import { container } from "../config/container";
 import "../controllers/auth.controller";
-import "../controllers/user.controller";
-import "../controllers/post.controller";
 import "../controllers/chat.controller";
+import "../controllers/post.controller";
+import "../controllers/comment.controller";
+import "../controllers/user.controller";
+import { errorHandler, notFoundHandler } from "../middlewares";
+import cookieParser from "cookie-parser";
+import bodyParser from "body-parser";
 
-export const setupExpressApp = (
-  redis: IORedis.Redis,
-  RedisStore: s.RedisStore
-) => {
+export const setupExpressApp = () => {
   // start the server
   const server = new InversifyExpressServer(container);
 
@@ -32,28 +27,10 @@ export const setupExpressApp = (
         credentials: true,
       })
     );
+    app.use(cookieParser());
+    app.use(bodyParser.urlencoded({ extended: true }));
     app.use(json());
     app.use("/public", express.static(PUBLIC_DIR));
-
-    app.use(
-      session({
-        name: COOKIE_NAME,
-        store: new RedisStore({
-          client: redis,
-          disableTouch: true,
-        }),
-        cookie: {
-          maxAge: 1000 * 60 * 60 * 24 * 365 * 20,
-          httpOnly: true,
-          sameSite: "lax",
-          secure: __prod__,
-          domain: __prod__ ? process.env.COOKIE_DOMAIN : undefined,
-        },
-        saveUninitialized: false,
-        secret: process.env.SESSION_SECRET,
-        resave: false,
-      })
-    );
   });
 
   const serverInstance = server.build();

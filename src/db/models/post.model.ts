@@ -32,6 +32,9 @@ export class IPost extends TimeStamps {
   @prop({ _id: false })
   public mapory?: PostMapory;
 
+  @prop({ default: [], type: String })
+  public picturesUris!: string[];
+
   @prop({ ref: "IUser" })
   public likes?: Ref<typeof User>[];
 }

@@ -21,6 +21,9 @@ export class IUser extends TimeStamps {
   @prop()
   public password?: string;
 
+  @prop({ default: 0 })
+  public refreshTokenVersion: number;
+
   @prop()
   public profilePictureUrl?: string;
 

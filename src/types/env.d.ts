@@ -18,5 +18,7 @@ declare namespace NodeJS {
     TWITTER_CONSUMER_KEY: string;
     TWITTER_CONSUMER_SECRET: string;
     PICTURES_BASE_URL: string;
+    ACCESS_TOKEN_SECRET: string;
+    REFRESH_TOKEN_SECRET: string;
   }
 }

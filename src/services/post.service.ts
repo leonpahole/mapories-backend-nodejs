@@ -1,29 +1,24 @@
-import { injectable, inject } from "inversify";
-import {
-  CreateOrUpdatePostRequest,
-  CreateOrUpdateCommentRequest,
-} from "../controllers/post.controller";
-import Post, { PostMapory } from "../db/models/post.model";
-import { PostDto } from "../dto/post/post.dto";
-import { logger } from "../utils/logger";
+import { inject, injectable } from "inversify";
 import { Types } from "mongoose";
-import { CommonError } from "../errors/common.error";
-import { UserService } from "./user.service";
 import TYPES from "../config/types";
-import CommentList, { CommentListItem } from "../db/models/commentList.model";
-import { stringToObjectId } from "../utils/strToObjectId";
-import { CommentDto, CommentWithLikesInfo } from "../dto/comment.dto";
+import { CreateOrUpdatePostRequest } from "../controllers/post.controller";
+import CommentList, {
+  CommentListIdPrefix,
+} from "../db/models/commentList.model";
+import Post, { PostMapory } from "../db/models/post.model";
 import { PaginatedResponse } from "../dto/PaginatedResponse";
 import { MaporyMapItemDto } from "../dto/post/maporyMapItem.dto";
+import { PostDto } from "../dto/post/post.dto";
+import { CommonError } from "../errors/common.error";
 import { PostError } from "../errors/post.error";
-import { UserUtilsService } from "./userUtils.service";
+import { logger } from "../utils/logger";
+import { stringToObjectId } from "../utils/strToObjectId";
 import { FriendService } from "./friend.service";
+import { UserService } from "./user.service";
+import { ImageService } from "./image.service";
 
 const POSTS_DEFAULT_PAGE_SIZE = 10;
 const POSTS_MAX_PAGE_SIZE = 50;
-
-const COMMENTS_DEFAULT_PAGE_SIZE = 10;
-const COMMENTS_MAX_PAGE_SIZE = 50;
 
 const FEED_DEFAULT_PAGE_SIZE = 10;
 const FEED_MAX_PAGE_SIZE = 50;
@@ -37,8 +32,8 @@ interface GetPostsCriteria {
 export class PostService {
   constructor(
     @inject(TYPES.UserService) private userService: UserService,
-    @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService,
-    @inject(TYPES.FriendService) private friendService: FriendService
+    @inject(TYPES.FriendService) private friendService: FriendService,
+    @inject(TYPES.ImageService) private imageService: ImageService
   ) {}
 
   private likesPipeline(userId: string) {
@@ -174,6 +169,7 @@ export class PostService {
     const post = await Post.create({
       content: data.content,
       mapory: postMapory,
+      picturesUris: [],
       author: {
         userId: author.id,
         name: author.name,
@@ -186,6 +182,34 @@ export class PostService {
       myLike: false,
       likesAmount: 0,
     });
+  }
+
+  public async updatePostPictures(
+    postId: string,
+    files: Express.Multer.File[],
+    deletedPictures: string[] = []
+  ): Promise<string[]> {
+    if (files.length > 0) {
+      const picturePaths = await this.imageService.uploadPostImages(files);
+      await Post.updateOne(
+        { _id: postId },
+        {
+          $push: { picturesUris: { $each: picturePaths } },
+        }
+      );
+    }
+
+    if (deletedPictures.length > 0) {
+      await Post.updateOne(
+        { _id: postId },
+        {
+          $pullAll: { picturesUris: deletedPictures },
+        }
+      );
+    }
+
+    const post = await Post.findById(postId);
+    return post?.picturesUris || [];
   }
 
   private async hasUserAuthoredPost(
@@ -244,7 +268,9 @@ export class PostService {
     }
 
     await Post.deleteOne({ _id: postId, "author.userId": userId });
-    await CommentList.deleteOne({ postId: stringToObjectId(postId) });
+    await CommentList.deleteOne({
+      entityId: `${CommentListIdPrefix.POST}_${stringToObjectId(postId)}`,
+    });
   }
 
   public async likePost(postId: string, userId: string): Promise<void> {
@@ -261,169 +287,8 @@ export class PostService {
     );
   }
 
-  private async postExists(postId: string): Promise<boolean> {
+  public async postExists(postId: string): Promise<boolean> {
     const post = await Post.findOne({ _id: postId }, { _id: 1 });
     return post != null;
-  }
-
-  public async commentPost(
-    postId: string,
-    body: CreateOrUpdateCommentRequest,
-    commenterId: string
-  ): Promise<CommentDto> {
-    const postExists = await this.postExists(postId);
-    if (!postExists) {
-      throw CommonError.NOT_FOUND;
-    }
-
-    const commenterRef = await this.userUtilsService.userIdToUserExtendedRef(
-      commenterId
-    );
-    if (!commenterRef) {
-      throw CommonError.NOT_FOUND;
-    }
-
-    const commentListItem: CommentListItem = {
-      _id: stringToObjectId((Types.ObjectId() as unknown) as string),
-      author: commenterRef,
-      content: body.content,
-      likes: [],
-    };
-
-    await CommentList.updateOne(
-      { postId: stringToObjectId(postId) },
-      { $push: { comments: commentListItem as any } },
-      {
-        upsert: true,
-      }
-    );
-
-    return CommentDto.fromModel({
-      ...commentListItem,
-      likesAmount: 0,
-      myLike: false,
-    });
-  }
-
-  public async updateComment(
-    postId: string,
-    commentId: string,
-    body: CreateOrUpdateCommentRequest,
-    userId: string
-  ): Promise<void> {
-    await CommentList.updateOne(
-      {
-        postId: stringToObjectId(postId),
-        comments: {
-          $elemMatch: {
-            _id: stringToObjectId(commentId),
-            "author.userId": stringToObjectId(userId),
-          },
-        },
-      },
-      {
-        $set: {
-          "comments.$.content": body.content,
-        },
-      }
-    );
-  }
-
-  public async deleteComment(
-    postId: string,
-    commentId: string,
-    userId: string
-  ): Promise<void> {
-    await CommentList.updateOne(
-      {
-        postId: stringToObjectId(postId),
-      },
-      {
-        $pull: {
-          comments: {
-            _id: stringToObjectId(commentId),
-            "author.userId": stringToObjectId(userId),
-          },
-        },
-      }
-    );
-  }
-
-  public async getPostComments(
-    postId: string,
-    currentUserId: string,
-    pageNumber: number,
-    pageSize: number = COMMENTS_DEFAULT_PAGE_SIZE
-  ): Promise<PaginatedResponse<CommentDto>> {
-    pageSize = Math.min(pageSize, COMMENTS_MAX_PAGE_SIZE);
-
-    const commentList = await CommentList.aggregate([
-      { $match: { postId: Types.ObjectId(postId) } },
-      { $unwind: "$comments" },
-      { $sort: { "comments.createdAt": -1 } },
-      { $skip: pageNumber * pageSize },
-      { $limit: pageSize + 1 },
-      {
-        $addFields: {
-          "comments.myLike": {
-            $in: [
-              Types.ObjectId(currentUserId),
-              { $ifNull: ["$comments.likes", []] },
-            ],
-          },
-          "comments.likesAmount": {
-            $size: { $ifNull: ["$comments.likes", []] },
-          },
-        },
-      },
-    ]).exec();
-
-    const comments: CommentWithLikesInfo[] = commentList.map(
-      (cl: any) => cl.comments
-    );
-
-    const moreAvailable = comments.length > pageSize;
-    if (moreAvailable) {
-      comments.pop();
-    }
-
-    const commentDtos = CommentDto.fromModels(comments);
-    return new PaginatedResponse<CommentDto>(commentDtos, moreAvailable);
-  }
-
-  public async likeComment(
-    postId: string,
-    commentId: string,
-    userId: string
-  ): Promise<void> {
-    await CommentList.updateOne(
-      {
-        postId: stringToObjectId(postId),
-        "comments._id": stringToObjectId(commentId),
-      },
-      {
-        $addToSet: {
-          "comments.$.likes": stringToObjectId(userId),
-        },
-      }
-    );
-  }
-
-  public async unlikeComment(
-    postId: string,
-    commentId: string,
-    userId: string
-  ): Promise<void> {
-    await CommentList.updateOne(
-      {
-        postId: stringToObjectId(postId),
-        "comments._id": stringToObjectId(commentId),
-      },
-      {
-        $pull: {
-          "comments.$.likes": stringToObjectId(userId),
-        },
-      }
-    );
   }
 }
