@@ -91,9 +91,6 @@ export class ChatSocketService {
       });
     });
 
-    console.log("onlineStatuses");
-    console.log(onlineStatuses);
-
     socket.emit("event://online-statuses", onlineStatuses);
   }
 

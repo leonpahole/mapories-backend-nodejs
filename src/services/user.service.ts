@@ -8,6 +8,12 @@ import { CommonError } from "../errors/common.error";
 import { ImageService } from "./image.service";
 import { UserUtilsService } from "./userUtils.service";
 import { FriendService } from "./friend.service";
+import { PaginatedResponse } from "../dto/PaginatedResponse";
+import { stringToObjectId } from "../utils/strToObjectId";
+import { verify } from "jsonwebtoken";
+
+const USERS_DEFAULT_PAGE_SIZE = 10;
+const USERS_MAX_PAGE_SIZE = 50;
 
 @injectable()
 export class UserService {
@@ -32,6 +38,19 @@ export class UserService {
     return user ? UserExcerptDto.fromModel(user) : null;
   }
 
+  public async getAuthUserByJwt(token: string): Promise<UserExcerptDto | null> {
+    try {
+      const payload = verify(token, process.env.ACCESS_TOKEN_SECRET) as any;
+      if (!payload || !payload.userId) {
+        return null;
+      }
+
+      return await this.getAuthUserById(payload.userId);
+    } catch (e) {
+      return null;
+    }
+  }
+
   public async getUserProfileById(
     userId: string,
     currentUserId: string
@@ -49,9 +68,31 @@ export class UserService {
     return UserProfileDto.fromModel({ user, friendStatus });
   }
 
-  public async searchUsers(q: string): Promise<UserExcerptDto[]> {
+  public async searchUsers(
+    q: string,
+    pageNumber: number,
+    pageSize: number = USERS_DEFAULT_PAGE_SIZE
+  ): Promise<PaginatedResponse<UserExcerptDto>> {
+    pageSize = Math.min(pageSize, USERS_MAX_PAGE_SIZE);
+
     const $regex = new RegExp(escapeStringRegexp(q), "i");
-    const users = await User.find({ name: { $regex } });
-    return UserExcerptDto.fromModels(users);
+    const users = await User.find({ name: { $regex } })
+      .sort({
+        name: 1,
+      })
+      .skip(pageNumber * pageSize)
+      .limit(pageSize + 1);
+
+    const moreAvailable = users.length > pageSize;
+    if (moreAvailable) {
+      users.pop();
+    }
+
+    const userDtos = UserExcerptDto.fromModels(users);
+    return new PaginatedResponse<UserExcerptDto>(userDtos, moreAvailable);
+  }
+
+  public async deleteProfile(userId: string) {
+    await User.deleteOne({ id: stringToObjectId(userId) });
   }
 }

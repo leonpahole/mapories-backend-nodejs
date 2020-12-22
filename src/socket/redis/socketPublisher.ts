@@ -16,6 +16,8 @@ export class SocketPublisher {
   }
 
   async publish(message: SocketMessage) {
-    this.redisClient.publish("socket", JSON.stringify(message));
+    const messageJson = JSON.stringify(message);
+    logger.info("Publish: " + messageJson);
+    this.redisClient.publish("socket", messageJson);
   }
 }

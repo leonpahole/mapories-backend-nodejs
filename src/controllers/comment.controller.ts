@@ -65,7 +65,7 @@ export class CommentController implements interfaces.Controller {
     @requestParam("postId") postId: string,
     @requestParam("commentId") commentId: string,
     @request() req: IRequest
-  ): Promise<void> {
+  ): Promise<{ markedDeleted: boolean }> {
     return this.commentService.deleteCommentOnPost(
       postId,
       commentId,
@@ -145,8 +145,8 @@ export class CommentController implements interfaces.Controller {
     @requestParam("commentId") commentId: string,
     @requestParam("commentOnCommentId") commentOnCommentId: string,
     @request() req: IRequest
-  ): Promise<void> {
-    return this.commentService.deleteCommentOnPost(
+  ): Promise<{ parentDeleted: boolean }> {
+    return this.commentService.deleteCommentOnComment(
       commentId,
       commentOnCommentId,
       req.userId

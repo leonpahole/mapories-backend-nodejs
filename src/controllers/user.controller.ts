@@ -19,6 +19,7 @@ import { UserProfileDto, FriendStatus } from "../dto/user/userProfile.dto";
 import { UserExcerptDto } from "../dto/user/authUser.dto";
 import { FriendRequestDto } from "../dto/user/friendRequest.dto";
 import { FriendService } from "../services/friend.service";
+import { PaginatedResponse } from "../dto/PaginatedResponse";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -30,8 +31,12 @@ export class UserController implements interfaces.Controller {
   ) {}
 
   @httpGet("/search", isAuth)
-  public searchUsers(@queryParam("q") q: string): Promise<UserExcerptDto[]> {
-    return this.userService.searchUsers(q);
+  public searchUsers(
+    @queryParam("q") q: string,
+    @queryParam("pageNum") pageNum: number,
+    @queryParam("pageSize") pageSize?: number
+  ): Promise<PaginatedResponse<UserExcerptDto>> {
+    return this.userService.searchUsers(q, pageNum, pageSize);
   }
 
   @httpPost("/upload-profile-picture", isAuth, upload.single("profile-picture"))
@@ -106,5 +111,10 @@ export class UserController implements interfaces.Controller {
     @request() req: IRequest
   ): Promise<UserProfileDto> {
     return this.userService.getUserProfileById(id, req.userId);
+  }
+
+  @httpDelete("/", isAuth)
+  public deleteMyProfile(@request() req: IRequest): Promise<void> {
+    return this.userService.deleteProfile(req.userId);
   }
 }

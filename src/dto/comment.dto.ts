@@ -12,6 +12,7 @@ export class CommentDto {
   content: string;
   postedAt: Date;
   author: UserExcerptDto;
+  deleted: boolean;
   likes: {
     likesAmount: number;
     myLike: boolean;
@@ -27,6 +28,7 @@ export class CommentDto {
         name: comment.author.name,
         profilePictureUrl: comment.author.profilePictureUrl,
       },
+      deleted: comment.deleted,
       likes: {
         likesAmount: comment.likesAmount,
         myLike: comment.myLike,

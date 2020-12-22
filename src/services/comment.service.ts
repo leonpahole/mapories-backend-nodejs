@@ -6,10 +6,13 @@ import CommentList, {
   CommentListIdPrefix,
   CommentListItem,
 } from "../db/models/commentList.model";
+import { UserExtendedRef } from "../db/models/user.extendedRef";
 import { CommentDto, CommentWithLikesInfo } from "../dto/comment.dto";
 import { PaginatedResponse } from "../dto/PaginatedResponse";
 import { CommonError } from "../errors/common.error";
+import { uniqueArray } from "../utils/arrayUtils";
 import { stringToObjectId } from "../utils/strToObjectId";
+import { NotificationService } from "./notification.service";
 import { PostService } from "./post.service";
 import { UserUtilsService } from "./userUtils.service";
 
@@ -22,16 +25,18 @@ const COMMENT_COMMENTS_MAX_PAGE_SIZE = 50;
 export class CommentService {
   constructor(
     @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService,
-    @inject(TYPES.PostService) private postService: PostService
+    @inject(TYPES.PostService) private postService: PostService,
+    @inject(TYPES.NotificationService)
+    private notificationService: NotificationService
   ) {}
 
-  private async commentExists(commentId: string): Promise<boolean> {
-    const comment = await CommentList.findOne(
-      { "comments._id": stringToObjectId(commentId) },
-      { _id: 1 }
-    );
-    return comment != null;
-  }
+  // private async commentExists(commentId: string): Promise<boolean> {
+  //   const comment = await CommentList.findOne(
+  //     { "comments._id": stringToObjectId(commentId) },
+  //     { _id: 1 }
+  //   );
+  //   return comment != null;
+  // }
 
   private async createComment(
     entityId: string,
@@ -51,6 +56,7 @@ export class CommentService {
       author: commenterRef,
       content,
       likes: [],
+      deleted: false,
     };
 
     await CommentList.updateOne(
@@ -73,15 +79,86 @@ export class CommentService {
     body: CreateOrUpdateCommentRequest,
     commenterId: string
   ): Promise<CommentDto> {
-    const postExists = await this.postService.postExists(postId);
-    if (!postExists) {
+    const author = await this.postService.getPostAuthor(postId);
+    if (!author) {
       throw CommonError.NOT_FOUND;
     }
 
-    return this.createComment(
+    const comment = await this.createComment(
       `${CommentListIdPrefix.POST}_${postId}`,
       body.content,
       commenterId
+    );
+
+    const receiverId = author.userId.toString();
+    if (receiverId !== commenterId) {
+      await this.notificationService.createCommentedPostNotification(
+        receiverId,
+        commenterId,
+        postId
+      );
+    }
+
+    return comment;
+  }
+
+  public async getCommentAuthor(
+    commentId: string
+  ): Promise<UserExtendedRef | null> {
+    const comment = await CommentList.aggregate([
+      {
+        $match: {
+          comments: {
+            $elemMatch: {
+              _id: stringToObjectId(commentId),
+            },
+          },
+        },
+      },
+      {
+        $unwind: "$comments",
+      },
+      {
+        $match: {
+          "$comments._id": stringToObjectId(commentId),
+        },
+      },
+      {
+        $limit: 1,
+      },
+    ]);
+
+    if (!comment || comment.length === 0) {
+      return null;
+    }
+
+    return comment[0].comments.author;
+  }
+
+  private async getCommentPostId(commentId: string): Promise<string | null> {
+    const comment = await CommentList.findOne(
+      { "comments._id": stringToObjectId(commentId) },
+      { _id: 1 }
+    );
+
+    if (!comment) {
+      return null;
+    }
+
+    return comment._id.replace(`${CommentListIdPrefix.POST}_`, "");
+  }
+
+  public async getCommentRepliersUserIds(commentId: string): Promise<string[]> {
+    const commentList = await CommentList.findById(
+      `${CommentListIdPrefix.COMMENT}_${commentId}`
+    );
+
+    if (!commentList) {
+      return [];
+    }
+
+    return uniqueArray(
+      commentList.comments.map((c) => c.author.userId.toString())
     );
   }
 
@@ -90,16 +167,46 @@ export class CommentService {
     body: CreateOrUpdateCommentRequest,
     commenterId: string
   ): Promise<CommentDto> {
-    const commentExists = await this.commentExists(commentId);
-    if (!commentExists) {
+    const author = await this.getCommentAuthor(commentId);
+    if (!author) {
       throw CommonError.NOT_FOUND;
     }
 
-    return this.createComment(
+    const postId = await this.getCommentPostId(commentId);
+    if (!postId) {
+      throw CommonError.NOT_FOUND;
+    }
+
+    const repliers = await this.getCommentRepliersUserIds(commentId);
+
+    const comment = await this.createComment(
       `${CommentListIdPrefix.COMMENT}_${commentId}`,
       body.content,
       commenterId
     );
+
+    const receiverId = author.userId.toString();
+    if (receiverId !== commenterId) {
+      await this.notificationService.createRepliedToCommentNotification(
+        receiverId,
+        commenterId,
+        postId
+      );
+    }
+
+    await Promise.all(
+      repliers
+        .filter((r) => r !== commenterId && r !== receiverId)
+        .map((r) =>
+          this.notificationService.createRepliedToCommentYouRepliedToNotification(
+            r,
+            commenterId,
+            postId
+          )
+        )
+    );
+
+    return comment;
   }
 
   private async updateComment(
@@ -179,28 +286,108 @@ export class CommentService {
     });
   }
 
+  private async markCommentDeleted(
+    entityId: string,
+    commentId: string,
+    userId: string
+  ): Promise<void> {
+    await CommentList.updateOne(
+      {
+        _id: entityId,
+        comments: {
+          $elemMatch: {
+            _id: stringToObjectId(commentId),
+            "author.userId": stringToObjectId(userId),
+          },
+        },
+      },
+      {
+        $set: {
+          "comments.$.content": "",
+          "comments.$.deleted": true,
+        },
+      }
+    );
+  }
+
   public async deleteCommentOnPost(
     postId: string,
     commentId: string,
     userId: string
-  ): Promise<void> {
-    await this.deleteComment(
-      `${CommentListIdPrefix.POST}_${postId}`,
-      commentId,
-      userId
+  ): Promise<{ markedDeleted: boolean }> {
+    const numberOfChildrenComments = await this.getNumberOfChildrenComments(
+      `${CommentListIdPrefix.COMMENT}_${commentId}`
     );
+
+    const commentListId = `${CommentListIdPrefix.POST}_${postId}`;
+
+    if (numberOfChildrenComments > 0) {
+      await this.markCommentDeleted(commentListId, commentId, userId);
+      return { markedDeleted: true };
+    } else {
+      await this.deleteComment(commentListId, commentId, userId);
+      return { markedDeleted: false };
+    }
   }
 
   public async deleteCommentOnComment(
     commentId: string,
     commentOnCommentId: string,
     userId: string
-  ): Promise<void> {
-    await this.deleteComment(
-      `${CommentListIdPrefix.COMMENT}_${commentId}`,
-      commentOnCommentId,
-      userId
+  ): Promise<{ parentDeleted: boolean }> {
+    // delete comment on comment
+    const commentListId = `${CommentListIdPrefix.COMMENT}_${commentId}`;
+    await this.deleteComment(commentListId, commentOnCommentId, userId);
+
+    // comment marked deleted and has no more children?
+    const parentCommentChildrenCount = await this.getNumberOfChildrenComments(
+      commentId
     );
+
+    if (parentCommentChildrenCount > 0) {
+      return { parentDeleted: false };
+    }
+
+    const res = await CommentList.updateOne(
+      {
+        comments: {
+          $elemMatch: {
+            _id: stringToObjectId(commentId),
+            deleted: true,
+          },
+        },
+      },
+      {
+        $pull: {
+          comments: {
+            _id: stringToObjectId(commentId),
+            deleted: true,
+          },
+        },
+      }
+    );
+
+    return { parentDeleted: res.nModified > 0 };
+  }
+
+  private async getNumberOfChildrenComments(
+    commentListId: string
+  ): Promise<number> {
+    const commentList = await CommentList.aggregate([
+      { $match: { _id: commentListId } },
+      { $project: { numberOfComments: { $size: "$comments" } } },
+      { $limit: 1 },
+    ]).exec();
+
+    if (
+      commentList &&
+      commentList.length > 0 &&
+      commentList[0].numberOfComments > 0
+    ) {
+      return commentList[0].numberOfComments;
+    }
+
+    return 0;
   }
 
   private async getComments(
@@ -299,11 +486,25 @@ export class CommentService {
     commentId: string,
     userId: string
   ): Promise<void> {
+    const author = await this.getCommentAuthor(commentId);
+    if (!author) {
+      throw CommonError.NOT_FOUND;
+    }
+
     await this.likeComment(
       `${CommentListIdPrefix.POST}_${postId}`,
       commentId,
       userId
     );
+
+    const receiverId = author.userId.toString();
+    if (receiverId !== userId) {
+      await this.notificationService.createLikedCommentNotification(
+        receiverId,
+        userId,
+        postId
+      );
+    }
   }
 
   public async likeCommentOnComment(
@@ -311,11 +512,30 @@ export class CommentService {
     commentOnCommentId: string,
     userId: string
   ): Promise<void> {
+    const author = await this.getCommentAuthor(commentId);
+    if (!author) {
+      throw CommonError.NOT_FOUND;
+    }
+
+    const postId = await this.getCommentPostId(commentId);
+    if (!postId) {
+      throw CommonError.NOT_FOUND;
+    }
+
     await this.likeComment(
       `${CommentListIdPrefix.COMMENT}_${commentId}`,
       commentOnCommentId,
       userId
     );
+
+    const receiverId = author.userId.toString();
+    if (receiverId !== userId) {
+      await this.notificationService.createLikedCommentNotification(
+        receiverId,
+        userId,
+        postId
+      );
+    }
   }
 
   private async unlikeComment(

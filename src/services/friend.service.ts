@@ -11,12 +11,15 @@ import { UserExtendedRef } from "../db/models/user.extendedRef";
 import { stringToObjectId } from "../utils/strToObjectId";
 import { UserUtilsService } from "./userUtils.service";
 import { ChatService } from "./chat.service";
+import { NotificationService } from "./notification.service";
 
 @injectable()
 export class FriendService {
   constructor(
     @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService,
-    @inject(TYPES.ChatService) private chatService: ChatService
+    @inject(TYPES.ChatService) private chatService: ChatService,
+    @inject(TYPES.NotificationService)
+    private notificationService: NotificationService
   ) {}
 
   public async getFriendshipStatus(
@@ -46,7 +49,7 @@ export class FriendService {
     return friendStatus;
   }
 
-  private async areUsersFriends(u1Id: string, u2Id: string) {
+  public async areUsersFriends(u1Id: string, u2Id: string) {
     const match = await UserList.findOne(
       {
         _id: `${UserListIdPrefix.FRIEND}_${u1Id}`,
@@ -153,6 +156,11 @@ export class FriendService {
       }
     );
 
+    await this.notificationService.createFriendRequestSentNotification(
+      requestedUserId,
+      requestingUserId
+    );
+
     return { newStatus: FriendStatus.PENDING_FROM_ME };
   }
 
@@ -222,6 +230,11 @@ export class FriendService {
     await this.chatService.createChatroom(acceptingUserId, {
       participants: [requestingUserId],
     });
+
+    await this.notificationService.createFriendRequestAcceptedNotification(
+      requestingUserId,
+      acceptingUserId
+    );
   }
 
   private async addFriend(userId: string, friendRef: UserExtendedRef) {

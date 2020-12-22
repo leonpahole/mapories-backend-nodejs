@@ -14,6 +14,8 @@ const TYPES = {
   SocketSubscriber: Symbol.for("SocketSubscriber"),
   ChatSocketService: Symbol.for("ChatSocketService"),
   JwtService: Symbol.for("JwtService"),
+  NotificationService: Symbol.for("NotificationService"),
+  NotificationSocketService: Symbol.for("NotificationSocketService"),
 };
 
 export default TYPES;

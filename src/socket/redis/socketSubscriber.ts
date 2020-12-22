@@ -20,6 +20,7 @@ export class SocketSubscriber {
       logger.info("Redis client subscribed to socket messages");
       this.redisClient.on("message", (_, message) => {
         const msg = JSON.parse(message) as SocketMessage;
+        logger.info("Socket message received");
         logger.info(msg);
         this.socketService.emit(
           msg.namespace,

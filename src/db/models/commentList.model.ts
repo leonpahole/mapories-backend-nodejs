@@ -16,6 +16,9 @@ export class CommentListItem extends TimeStamps {
   @prop({ _id: false, type: UserExtendedRef })
   author!: UserExtendedRef;
 
+  @prop({ default: false })
+  deleted: boolean;
+
   @prop({ ref: "IUser" })
   public likes?: Ref<typeof User>[];
 }

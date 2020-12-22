@@ -74,8 +74,6 @@ export const isAuth = (req: IRequest, res: Response, next: NextFunction) => {
   if (authorization) {
     try {
       const token = authorization.split(" ")[1];
-      console.log("IS AUTH");
-      console.log(token);
       const payload = verify(token, process.env.ACCESS_TOKEN_SECRET) as any;
       if (payload.userId) {
         req.userId = payload.userId as string;

@@ -8,6 +8,7 @@ import { PostService } from "../services/post.service";
 import { AuthService } from "../services/auth.service";
 import { Interfaces, TYPE } from "inversify-socket-utils";
 import { ChatSocketController } from "../socket/socket-controller/chat.socket-controller";
+import { NotificationSocketController } from "../socket/socket-controller/notification.socket-controller";
 import { ChatService } from "../services/chat.service";
 import { SocketService } from "../socket/socket-service/socket.service";
 import { SocketPublisher } from "../socket/redis/socketPublisher";
@@ -17,6 +18,8 @@ import { UserUtilsService } from "../services/userUtils.service";
 import { ChatSocketService } from "../socket/socket-service/chat.socket-service";
 import { JwtService } from "../services/jwt.service";
 import { CommentService } from "../services/comment.service";
+import { NotificationService } from "../services/notification.service";
+import { NotificationSocketService } from "../socket/socket-service/notification.socket-service";
 
 const container = new Container();
 container.bind<AuthService>(TYPES.AuthService).to(AuthService);
@@ -36,6 +39,13 @@ container.bind<SocketService>(TYPES.SocketService).to(SocketService);
 container
   .bind<ChatSocketService>(TYPES.ChatSocketService)
   .to(ChatSocketService);
+container
+  .bind<NotificationSocketService>(TYPES.NotificationSocketService)
+  .to(NotificationSocketService);
+
+container
+  .bind<NotificationService>(TYPES.NotificationService)
+  .to(NotificationService);
 
 container
   .bind<SocketPublisher>(TYPES.SocketPublisher)
@@ -51,4 +61,8 @@ container
   .bind<Interfaces.Controller>(TYPE.Controller)
   .to(ChatSocketController)
   .whenTargetNamed("ChatSocketController");
+container
+  .bind<Interfaces.Controller>(TYPE.Controller)
+  .to(NotificationSocketController)
+  .whenTargetNamed("NotificationSocketController");
 export { container };

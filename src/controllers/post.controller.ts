@@ -30,7 +30,6 @@ import { isAuth, validation } from "../middlewares";
 import { PostService } from "../services/post.service";
 import { IRequest } from "../types/api";
 import multer from "multer";
-import { parse } from "path";
 
 class MaporyPostRequestPart {
   @IsOptional()
@@ -118,16 +117,22 @@ export class PostController implements interfaces.Controller {
     return this.postService.getFeedForUser(req.userId, pageNum, pageSize);
   }
 
+  @httpGet("/my-mapories-feed", isAuth)
+  public getFeedMapData(@request() req: IRequest): Promise<MaporyMapItemDto[]> {
+    return this.postService.getFeedMapData(req.userId);
+  }
+
   @httpGet("/my-mapories", isAuth)
   public getMyMapData(@request() req: IRequest): Promise<MaporyMapItemDto[]> {
-    return this.postService.getMapDataForUser(req.userId);
+    return this.postService.getMapDataForUser(req.userId, req.userId);
   }
 
   @httpGet("/my-mapories/:userId", isAuth)
   public getUsersMapData(
+    @request() req: IRequest,
     @requestParam("userId") userId: string
   ): Promise<MaporyMapItemDto[]> {
-    return this.postService.getMapDataForUser(userId);
+    return this.postService.getMapDataForUser(userId, req.userId);
   }
 
   @httpGet("/:id", isAuth)

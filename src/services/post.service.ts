@@ -16,6 +16,8 @@ import { stringToObjectId } from "../utils/strToObjectId";
 import { FriendService } from "./friend.service";
 import { UserService } from "./user.service";
 import { ImageService } from "./image.service";
+import { NotificationService } from "./notification.service";
+import { UserExtendedRef } from "../db/models/user.extendedRef";
 
 const POSTS_DEFAULT_PAGE_SIZE = 10;
 const POSTS_MAX_PAGE_SIZE = 50;
@@ -33,7 +35,9 @@ export class PostService {
   constructor(
     @inject(TYPES.UserService) private userService: UserService,
     @inject(TYPES.FriendService) private friendService: FriendService,
-    @inject(TYPES.ImageService) private imageService: ImageService
+    @inject(TYPES.ImageService) private imageService: ImageService,
+    @inject(TYPES.NotificationService)
+    private notificationService: NotificationService
   ) {}
 
   private likesPipeline(userId: string) {
@@ -55,6 +59,17 @@ export class PostService {
     postType: string | undefined = undefined
   ): Promise<PaginatedResponse<PostDto>> {
     pageSize = Math.min(pageSize, POSTS_MAX_PAGE_SIZE);
+
+    if (userId !== currentUserId) {
+      const areFriends = await this.friendService.areUsersFriends(
+        userId,
+        currentUserId
+      );
+
+      if (!areFriends) {
+        throw PostError.NOT_FRIENDS_WITH_USER;
+      }
+    }
 
     return await this.getPostsByCriteria(currentUserId, pageNumber, pageSize, {
       type: postType,
@@ -120,7 +135,35 @@ export class PostService {
     return new PaginatedResponse<PostDto>(postDtos, moreAvailable);
   }
 
-  public async getMapDataForUser(userId: string): Promise<MaporyMapItemDto[]> {
+  public async getFeedMapData(
+    currentUserId: string
+  ): Promise<MaporyMapItemDto[]> {
+    const friends = await this.friendService.getFriendIds(currentUserId);
+    friends.push(Types.ObjectId(currentUserId));
+
+    const posts = await Post.find({
+      "author.userId": { $in: friends },
+      mapory: { $exists: true },
+    });
+
+    return MaporyMapItemDto.fromModels(posts);
+  }
+
+  public async getMapDataForUser(
+    userId: string,
+    currentUserId: string
+  ): Promise<MaporyMapItemDto[]> {
+    if (userId !== currentUserId) {
+      const areFriends = await this.friendService.areUsersFriends(
+        userId,
+        currentUserId
+      );
+
+      if (!areFriends) {
+        throw PostError.NOT_FRIENDS_WITH_USER;
+      }
+    }
+
     const posts = await Post.find({
       "author.userId": Types.ObjectId(userId),
       mapory: { $exists: true },
@@ -273,11 +316,34 @@ export class PostService {
     });
   }
 
+  public async getPostAuthor(postId: string): Promise<UserExtendedRef | null> {
+    const post = await Post.findById(postId);
+    if (!post) {
+      return null;
+    }
+
+    return post.author;
+  }
+
   public async likePost(postId: string, userId: string): Promise<void> {
+    const author = await this.getPostAuthor(postId);
+    if (!author) {
+      throw CommonError.NOT_FOUND;
+    }
+
     await Post.updateOne(
       { _id: postId },
       { $addToSet: { likes: Types.ObjectId(userId) } }
     );
+
+    const receiverId = author.userId.toString();
+    if (receiverId !== userId) {
+      await this.notificationService.createLikedPostNotification(
+        receiverId,
+        userId,
+        postId
+      );
+    }
   }
 
   public async unlikePost(postId: string, userId: string): Promise<void> {

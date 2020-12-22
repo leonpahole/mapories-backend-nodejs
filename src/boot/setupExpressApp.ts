@@ -10,6 +10,7 @@ import "../controllers/chat.controller";
 import "../controllers/post.controller";
 import "../controllers/comment.controller";
 import "../controllers/user.controller";
+import "../controllers/notification.controller";
 import { errorHandler, notFoundHandler } from "../middlewares";
 import cookieParser from "cookie-parser";
 import bodyParser from "body-parser";

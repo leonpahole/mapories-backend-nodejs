@@ -194,7 +194,7 @@ export class AuthController implements interfaces.Controller {
   public async logout(
     @response() res: Response
   ): Promise<{ success: boolean }> {
-    res.clearCookie(REFRESH_TOKEN_COOKIE_NAME);
+    res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, { path: "/auth/refresh-token" });
     return { success: true };
   }
 

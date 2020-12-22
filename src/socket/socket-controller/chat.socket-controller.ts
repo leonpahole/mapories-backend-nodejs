@@ -38,17 +38,17 @@ export class ChatSocketController {
 
   @OnConnect("connection")
   async connection(
-    @SocketQueryParam("id") id: string,
+    @SocketQueryParam("token") token: string,
     @ConnectedSocket() socket: ISocket
   ) {
-    const user = await this.userService.getAuthUserById(id);
+    const user = await this.userService.getAuthUserByJwt(token);
     if (!user) {
-      logger.info(`Invalid id : ${id}, disconnecting`);
+      logger.info(`Invalid token, disconnecting`);
       socket.disconnect();
       return;
     }
 
-    logger.info(`Client connected to chat: ${id}`);
+    logger.info(`Client connected to chat: ${user.id}`);
     socket.localData = {
       user,
     };
