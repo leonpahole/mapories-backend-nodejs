@@ -225,7 +225,7 @@ export class AuthController implements interfaces.Controller {
   public async loginSocial(
     @requestParam("provider") provider: SocialProvider,
     @requestBody() body: LoginSocialRequest,
-    @request() res: Response
+    @response() res: Response
   ): Promise<LoginSocialResponse> {
     const response = await this.socialAuthService.loginSocial(provider, body);
     let existingUserLoginData: LoginResponse | null = null;
@@ -252,7 +252,7 @@ export class AuthController implements interfaces.Controller {
   public async registerSocial(
     @requestParam("provider") provider: SocialProvider,
     @requestBody() body: RegisterSocialRequest,
-    @request() res: Response
+    @response() res: Response
   ): Promise<LoginResponse> {
     const user = await this.socialAuthService.registerSocial(provider, body);
 

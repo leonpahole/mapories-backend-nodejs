@@ -117,4 +117,47 @@ export class ChatSocketService {
       });
     }
   }
+
+  public async sendChatroomRead(socket: ISocket, chatroomId: string) {
+    const isRead = await this.chatService.readChatroom(
+      chatroomId,
+      socket.localData.user.id
+    );
+
+    if (isRead) {
+      this.socketPublisher.publish({
+        namespace: CHAT_NAMESPACE,
+        room: chatroomId,
+        payload: {
+          chatroomId,
+          userId: socket.localData.user.id,
+        },
+        topic: "event://get-chatroom-read",
+      });
+    }
+  }
+
+  public async sendChatroomTyping(
+    socket: ISocket,
+    chatroomId: string,
+    typing: boolean
+  ) {
+    const isParticipant = await this.chatService.isUserParticipantInChatroom(
+      chatroomId,
+      socket.localData.user.id
+    );
+
+    if (isParticipant) {
+      this.socketPublisher.publish({
+        namespace: CHAT_NAMESPACE,
+        room: chatroomId,
+        payload: {
+          chatroomId,
+          userId: socket.localData.user.id,
+          typing,
+        },
+        topic: "event://get-chatroom-typing",
+      });
+    }
+  }
 }

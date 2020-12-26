@@ -7,6 +7,7 @@ import { NotificationDto } from "../dto/notification.dto";
 import { PaginatedResponse } from "../dto/PaginatedResponse";
 import { CommonError } from "../errors/common.error";
 import { SocketPublisher } from "../socket/redis/socketPublisher";
+import { PushService } from "./push.service";
 import { UserUtilsService } from "./userUtils.service";
 
 const NOTIFICATIONS_DEFAULT_PAGE_SIZE = 10;
@@ -18,7 +19,8 @@ const NOTIFICATION_NAMESPACE = "/notify";
 export class NotificationService {
   constructor(
     @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService,
-    @inject(TYPES.SocketPublisher) private socketPublisher: SocketPublisher
+    @inject(TYPES.SocketPublisher) private socketPublisher: SocketPublisher,
+    @inject(TYPES.PushService) private pushService: PushService
   ) {}
 
   public async getUnreadNotificationsCountsForUser(
@@ -98,6 +100,8 @@ export class NotificationService {
       payload: notificationDto,
       topic: "event://get-notification",
     });
+
+    this.pushService.sendPush(receiverId, JSON.stringify(notificationDto));
   }
 
   public async createFriendRequestSentNotification(

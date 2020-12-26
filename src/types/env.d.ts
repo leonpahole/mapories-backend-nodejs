@@ -20,5 +20,8 @@ declare namespace NodeJS {
     PICTURES_BASE_URL: string;
     ACCESS_TOKEN_SECRET: string;
     REFRESH_TOKEN_SECRET: string;
+    WEBPUSH_VAPID_PUBLIC_KEY: string;
+    WEBPUSH_VAPID_PRIVATE_KEY: string;
+    WEBPUSH_VAPID_EMAIL: string;
   }
 }

@@ -28,7 +28,7 @@ export class ChatService {
       .sort({ lastMessagedAt: -1 })
       .exec();
 
-    return ChatroomDto.fromModels(chatrooms);
+    return ChatroomDto.fromModels(chatrooms, currentUserId);
   }
 
   async getUsersChatroomIds(currentUserId: string): Promise<IChatroom[]> {
@@ -49,6 +49,18 @@ export class ChatService {
       _id: chatroomId,
       "participants.userId": Types.ObjectId(participantId),
     }).exec();
+  }
+
+  async isUserParticipantInChatroom(
+    chatroomId: string,
+    participantId: string
+  ): Promise<boolean> {
+    const c = await Chatroom.findOne({
+      _id: chatroomId,
+      "participants.userId": Types.ObjectId(participantId),
+    }).exec();
+
+    return c != null;
   }
 
   async getChatroomMessages(
@@ -108,14 +120,15 @@ export class ChatService {
     );
 
     if (existingChatroom) {
-      return ChatroomDto.fromModel(existingChatroom);
+      return ChatroomDto.fromModel(existingChatroom, currentUserId);
     }
 
     const chatroom = await Chatroom.create({
       participants,
+      read: [],
     });
 
-    return ChatroomDto.fromModel(chatroom);
+    return ChatroomDto.fromModel(chatroom, currentUserId);
   }
 
   private async findChatroomByParticipantIds(
@@ -157,6 +170,29 @@ export class ChatService {
       {
         upsert: true,
       }
+    );
+
+    await Chatroom.updateOne(
+      { _id: stringToObjectId(chatroomId) },
+      { read: [Types.ObjectId(userId)] }
+    );
+
+    return true;
+  }
+
+  async readChatroom(chatroomId: string, userId: string): Promise<boolean> {
+    const chatroom = await this.getChatroomByIdAndParticipantId(
+      chatroomId,
+      userId
+    );
+
+    if (!chatroom) {
+      return false;
+    }
+
+    await Chatroom.updateOne(
+      { _id: stringToObjectId(chatroomId) },
+      { $push: { read: Types.ObjectId(userId) } }
     );
 
     return true;

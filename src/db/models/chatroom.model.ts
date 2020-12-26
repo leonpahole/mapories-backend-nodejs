@@ -1,7 +1,8 @@
-import { prop, getModelForClass } from "@typegoose/typegoose";
+import { prop, getModelForClass, Ref } from "@typegoose/typegoose";
 import { TimeStamps } from "@typegoose/typegoose/lib/defaultClasses";
 import { Schema } from "mongoose";
 import { UserExtendedRef } from "./user.extendedRef";
+import User from "./user.model";
 
 export class IChatroom extends TimeStamps {
   _id?: Schema.Types.ObjectId;
@@ -11,11 +12,11 @@ export class IChatroom extends TimeStamps {
   @prop({ _id: false, required: true, type: UserExtendedRef })
   public participants!: UserExtendedRef[];
 
+  @prop({ ref: "IUser", default: [] })
+  public read!: Ref<typeof User>[];
+
   @prop()
   public name?: string;
-
-  @prop({ default: null })
-  lastMessagedAt?: Date;
 }
 
 const Chatroom = getModelForClass(IChatroom, {

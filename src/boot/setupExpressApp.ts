@@ -5,12 +5,15 @@ import { InversifyExpressServer } from "inversify-express-utils";
 import { InversifySocketServer } from "inversify-socket-utils";
 import { PUBLIC_DIR } from "../config/constants";
 import { container } from "../config/container";
+
 import "../controllers/auth.controller";
 import "../controllers/chat.controller";
 import "../controllers/post.controller";
 import "../controllers/comment.controller";
 import "../controllers/user.controller";
 import "../controllers/notification.controller";
+import "../controllers/push.controller";
+
 import { errorHandler, notFoundHandler } from "../middlewares";
 import cookieParser from "cookie-parser";
 import bodyParser from "body-parser";

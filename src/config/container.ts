@@ -20,6 +20,7 @@ import { JwtService } from "../services/jwt.service";
 import { CommentService } from "../services/comment.service";
 import { NotificationService } from "../services/notification.service";
 import { NotificationSocketService } from "../socket/socket-service/notification.socket-service";
+import { PushService } from "../services/push.service";
 
 const container = new Container();
 container.bind<AuthService>(TYPES.AuthService).to(AuthService);
@@ -42,6 +43,7 @@ container
 container
   .bind<NotificationSocketService>(TYPES.NotificationSocketService)
   .to(NotificationSocketService);
+container.bind<PushService>(TYPES.PushService).to(PushService);
 
 container
   .bind<NotificationService>(TYPES.NotificationService)

@@ -73,4 +73,26 @@ export class ChatSocketController {
     logger.info("Message received");
     this.chatSocketService.sendMessage(socket, message);
   }
+
+  @OnMessage("event://send-chatroom-read")
+  chatroomRead(
+    @Payload() chatroomId: string,
+    @ConnectedSocket() socket: ISocket
+  ) {
+    logger.info("Message received");
+    this.chatSocketService.sendChatroomRead(socket, chatroomId);
+  }
+
+  @OnMessage("event://send-chatroom-typing")
+  chatroomTyping(
+    @Payload() payload: { chatroomId: string; typing: boolean },
+    @ConnectedSocket() socket: ISocket
+  ) {
+    logger.info("Message received");
+    this.chatSocketService.sendChatroomTyping(
+      socket,
+      payload.chatroomId,
+      payload.typing
+    );
+  }
 }

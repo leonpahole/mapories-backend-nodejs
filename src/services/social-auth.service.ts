@@ -106,6 +106,7 @@ export class SocialAuthService {
       return existingUser;
     }
 
+    /*
     let profilePicPath: string | undefined = undefined;
 
     if (request.profilePictureUrl) {
@@ -113,11 +114,12 @@ export class SocialAuthService {
         request.profilePictureUrl
       );
     }
+    */
 
     return await this.authService.registerSocial(
       request.name,
       providerData.email,
-      profilePicPath
+      undefined
     );
   }
 
