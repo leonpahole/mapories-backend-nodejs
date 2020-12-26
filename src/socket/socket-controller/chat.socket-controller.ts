@@ -28,13 +28,15 @@ export interface ChatroomMessage {
 @Controller(CHAT_NAMESPACE)
 export class ChatSocketController {
   constructor(
-    // eslint-disable-next-line
-    @inject(TYPES.SocketSubscriber) private socketSubscriber: SocketSubscriber,
+    @inject(TYPES.SocketSubscriber)
+    private socketSubscriber: SocketSubscriber,
     @inject(TYPES.ChatSocketService)
     private chatSocketService: ChatSocketService,
     @inject(TYPES.UserService)
     private userService: UserService
-  ) {}
+  ) {
+    console.log(this.socketSubscriber);
+  }
 
   @OnConnect("connection")
   async connection(

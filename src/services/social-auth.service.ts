@@ -11,7 +11,6 @@ import axios from "axios";
 import crypto from "crypto";
 import { logger } from "../utils/logger";
 import { v1 } from "uuid";
-import { ImageService } from "./image.service";
 import { AuthService } from "./auth.service";
 import { UserUtilsService } from "./userUtils.service";
 
@@ -54,8 +53,7 @@ const TWITTER_API_URL = "https://api.twitter.com";
 export class SocialAuthService {
   constructor(
     @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService,
-    @inject(TYPES.AuthService) private authService: AuthService,
-    @inject(TYPES.ImageService) private imageService: ImageService
+    @inject(TYPES.AuthService) private authService: AuthService
   ) {}
 
   public async loginSocial(

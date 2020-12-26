@@ -1,7 +1,6 @@
 import { injectable } from "inversify";
 import axios from "axios";
 import fs from "fs";
-import { compress } from "compress-images/promise";
 import { ImageUploadError } from "../errors/imageUpload.error";
 import { logger } from "../utils/logger";
 import { v4 } from "uuid";
@@ -26,10 +25,10 @@ export class ImageService {
   private async downloadAndCompressImage(
     url: string,
     uploadPath: string,
-    publicDir: string
+    _: string
   ) {
     await this.downloadImageFromUrl(url, uploadPath);
-    await this.compressImage(uploadPath, publicDir);
+    // await this.compressImage(uploadPath, publicDir);
   }
 
   private async downloadImageFromUrl(
@@ -65,27 +64,27 @@ export class ImageService {
     }
   }
 
-  private async compressImage(sourcePath: string, destDir: string) {
-    const result = await compress({
-      source: sourcePath,
-      destination: destDir + "/",
-      enginesSetup: {
-        jpg: { engine: "mozjpeg", command: ["-quality", "60"] },
-        png: { engine: "pngquant", command: ["--quality=20-50", "-o"] },
-      },
-    });
+  // private async compressImage(sourcePath: string, destDir: string) {
+  //   const result = await compress({
+  //     source: sourcePath,
+  //     destination: destDir + "/",
+  //     enginesSetup: {
+  //       jpg: { engine: "mozjpeg", command: ["-quality", "60"] },
+  //       png: { engine: "pngquant", command: ["--quality=20-50", "-o"] },
+  //     },
+  //   });
 
-    const { statistics, errors } = result;
+  //   const { statistics, errors } = result;
 
-    logger.info("Upload statistics");
-    logger.info(statistics);
+  //   logger.info("Upload statistics");
+  //   logger.info(statistics);
 
-    if (errors.length > 0) {
-      logger.error("Image compress error");
-      logger.error(result.errors);
-      throw ImageUploadError.COMPRESS_ERROR;
-    }
-  }
+  //   if (errors.length > 0) {
+  //     logger.error("Image compress error");
+  //     logger.error(result.errors);
+  //     throw ImageUploadError.COMPRESS_ERROR;
+  //   }
+  // }
 
   public async uploadAndCompressProfileImage(
     pictureData: Express.Multer.File
@@ -100,10 +99,10 @@ export class ImageService {
   private async uploadAndCompressImage(
     pictureData: Express.Multer.File,
     uploadPath: string,
-    publicDir: string
+    _: string
   ) {
     this.uploadImage(pictureData, uploadPath);
-    await this.compressImage(uploadPath, publicDir);
+    // await this.compressImage(uploadPath, publicDir);
   }
 
   private uploadImage(pictureData: Express.Multer.File, uploadPath: string) {

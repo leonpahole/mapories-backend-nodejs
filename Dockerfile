@@ -36,7 +36,7 @@ USER node
 COPY --from=deps /tmp/deps.json ./package.json
 COPY yarn.lock ./
 
-RUN yarn
+RUN yarn --frozen-lockfile
 
 COPY emails emails/
 COPY --from=builder /usr/src/app/dist/ dist/
