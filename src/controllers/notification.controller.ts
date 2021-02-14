@@ -10,10 +10,7 @@ import {
 } from "inversify-express-utils";
 import TYPES from "../config/types";
 import { NotificationDto } from "../dto/notification.dto";
-import {
-  CursorPaginatedResponse,
-  PaginatedResponse,
-} from "../dto/PaginatedResponse";
+import { CursorPaginatedResponse } from "../dto/PaginatedResponse";
 import { isAuth } from "../middlewares";
 import { NotificationService } from "../services/notification.service";
 import { IRequest } from "../types/api";

@@ -4,10 +4,7 @@ import Notification, {
   NotificationType,
 } from "../db/models/notification.model";
 import { NotificationDto } from "../dto/notification.dto";
-import {
-  CursorPaginatedResponse,
-  PaginatedResponse,
-} from "../dto/PaginatedResponse";
+import { CursorPaginatedResponse } from "../dto/PaginatedResponse";
 import { CommonError } from "../errors/common.error";
 import { SocketPublisher } from "../socket/redis/socketPublisher";
 import { getNotificationInfo } from "../utils/getNotificationInfo";
