@@ -14,7 +14,7 @@ import "../controllers/user.controller";
 import "../controllers/notification.controller";
 import "../controllers/push.controller";
 
-import { errorHandler, notFoundHandler } from "../middlewares";
+import { errorHandler, notFoundHandler, requestLogger } from "../middlewares";
 import cookieParser from "cookie-parser";
 import bodyParser from "body-parser";
 
@@ -24,6 +24,7 @@ export const setupExpressApp = () => {
 
   server.setConfig((app) => {
     // app.use(pino());
+    app.use(requestLogger);
     app.use(helmet());
     app.use(
       cors({

@@ -35,7 +35,7 @@ export class ChatSocketController {
     @inject(TYPES.UserService)
     private userService: UserService
   ) {
-    console.log(this.socketSubscriber);
+    this.socketSubscriber;
   }
 
   @OnConnect("connection")

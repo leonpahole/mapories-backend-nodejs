@@ -5,6 +5,7 @@ import WebPushSubscription, {
   IWebPushSubscription,
   toSubscription,
 } from "../db/models/push-subscription.model";
+import { logger } from "../utils/logger";
 
 webpush.setVapidDetails(
   `mailto:${process.env.WEBPUSH_VAPID_EMAIL}`,
@@ -39,18 +40,25 @@ export class PushService {
   }
 
   public async sendPush(userId: string, payload: any) {
-    const subscriptions = await this.getSubscriptionsForUser(userId);
-
     try {
+      const subscriptions = await this.getSubscriptionsForUser(userId);
+
       await Promise.all(
         subscriptions.map((s) => {
           const webPushSubscription = toSubscription(s);
-          return webpush.sendNotification(webPushSubscription, payload);
+          return webpush.sendNotification(
+            webPushSubscription,
+            JSON.stringify(payload)
+          );
         })
       );
     } catch (e) {
-      console.log("Web push error");
-      console.log(e);
+      logger.error("Web push error");
+      logger.error(e);
     }
+  }
+
+  public async sendPushToMultipleUsers(userIds: string[], payload: any) {
+    await Promise.all(userIds.map((u) => this.sendPush(u, payload)));
   }
 }

@@ -11,7 +11,8 @@ import ChatroomMessages, {
   IChatroomMessage,
 } from "../db/models/chatroomMessages.model";
 import { stringToObjectId } from "../utils/strToObjectId";
-import { PaginatedResponse } from "../dto/PaginatedResponse";
+import { CursorPaginatedResponse } from "../dto/PaginatedResponse";
+import { LatestChatDto } from "../dto/chatroom/latestChat.dto";
 
 const CHATS_DEFAULT_PAGE_SIZE = 10;
 
@@ -29,6 +30,92 @@ export class ChatService {
       .exec();
 
     return ChatroomDto.fromModels(chatrooms, currentUserId);
+  }
+
+  async getChatroomInfo(
+    currentUserId: string,
+    id: string
+  ): Promise<ChatroomDto> {
+    const chatroom = await Chatroom.findOne({
+      _id: id,
+      "participants.userId": Types.ObjectId(currentUserId),
+    }).exec();
+
+    if (!chatroom) {
+      throw CommonError.NOT_FOUND;
+    }
+
+    return ChatroomDto.fromModel(chatroom, currentUserId);
+  }
+
+  async getLatestChats(currentUserId: string): Promise<LatestChatDto[]> {
+    const latestChats = await Chatroom.aggregate([
+      {
+        $match: {
+          participants: {
+            $elemMatch: { userId: Types.ObjectId(currentUserId) },
+          },
+        },
+      },
+      { $project: { id: 1, participants: 1 } },
+      {
+        $lookup: {
+          from: "ichatroommessages",
+          localField: "_id",
+          foreignField: "chatroomId",
+          as: "messages",
+        },
+      },
+      { $unwind: { path: "$messages", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: {
+          path: "$messages.messages",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      { $sort: { "messages.messages.createdAt": -1 } },
+      {
+        $group: {
+          _id: "$_id",
+          lastMessage: { $first: "$messages" },
+          participants: { $first: "$participants" },
+        },
+      },
+      {
+        $project: {
+          chatroomId: "$lastMessage.chatroomId",
+          lastMessage: "$lastMessage.messages",
+          otherUsers: {
+            $filter: {
+              input: "$participants",
+              as: "p",
+              cond: {
+                $ne: ["$$p.userId", Types.ObjectId(currentUserId)],
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    return latestChats.map((c) => ({
+      chatroomId: c._id.toString(),
+      lastMessage: c.lastMessage
+        ? {
+            content: c.lastMessage.content,
+            createdAt: c.lastMessage.createdAt,
+            id: c.lastMessage._id,
+            sender: {
+              id: c.lastMessage.author.userId,
+              name: c.lastMessage.author.name,
+            },
+          }
+        : null,
+      otherUsers: c.otherUsers.map((u: any) => ({
+        id: u.userId,
+        name: u.name,
+      })),
+    }));
   }
 
   async getUsersChatroomIds(currentUserId: string): Promise<IChatroom[]> {
@@ -66,9 +153,9 @@ export class ChatService {
   async getChatroomMessages(
     id: string,
     currentUserId: string,
-    skip: number,
+    cursor?: number,
     pageSize: number = CHATS_DEFAULT_PAGE_SIZE
-  ): Promise<PaginatedResponse<ChatroomMessageDto>> {
+  ): Promise<CursorPaginatedResponse<ChatroomMessageDto>> {
     const chatroom = await this.getChatroomByIdAndParticipantId(
       id,
       currentUserId
@@ -79,27 +166,41 @@ export class ChatService {
     }
 
     const chatList = await ChatroomMessages.aggregate([
-      { $match: { chatroomId: Types.ObjectId(id) } },
-      { $unwind: "$messages" },
+      {
+        $match: {
+          chatroomId: Types.ObjectId(id),
+        },
+      },
+      { $unwind: { path: "$messages", preserveNullAndEmptyArrays: true } },
+      {
+        $match: {
+          "messages.createdAt": {
+            $lte: cursor ? new Date(Number(cursor)) : new Date(),
+          },
+        },
+      },
       { $sort: { "messages.createdAt": -1 } },
-      { $skip: skip },
       { $limit: pageSize + 1 },
       { $sort: { "messages.createdAt": 1 } },
     ]).exec();
 
     if (!chatList) {
-      return new PaginatedResponse<ChatroomMessageDto>([], false);
+      return new CursorPaginatedResponse<ChatroomMessageDto>([], null);
     }
 
-    const chats: IChatroomMessage[] = chatList.map((cl: any) => cl.messages);
-
-    const moreAvailable = chats.length > pageSize;
-    if (moreAvailable) {
-      chats.shift();
+    const chats: IChatroomMessage[] = chatList
+      .map((cl: any) => cl.messages)
+      .reverse();
+    let nextCursor: number | null = null;
+    if (chats.length > pageSize) {
+      nextCursor = chats.pop()!.createdAt!.getTime();
     }
 
     const chatDtos = ChatroomMessageDto.fromModels(chats);
-    return new PaginatedResponse<ChatroomMessageDto>(chatDtos, moreAvailable);
+    return new CursorPaginatedResponse<ChatroomMessageDto>(
+      chatDtos,
+      nextCursor
+    );
   }
 
   async createChatroom(
@@ -144,19 +245,19 @@ export class ChatService {
     chatroomId: string,
     message: string,
     userId: string
-  ): Promise<boolean> {
+  ): Promise<string[] | null> {
     const chatroom = await this.getChatroomByIdAndParticipantId(
       chatroomId,
       userId
     );
 
     if (!chatroom) {
-      return false;
+      return null;
     }
 
     const author = await this.userUtilsService.userIdToUserExtendedRef(userId);
     if (!author) {
-      return false;
+      return null;
     }
 
     const messageObj: IChatroomMessage = {
@@ -177,7 +278,9 @@ export class ChatService {
       { read: [Types.ObjectId(userId)] }
     );
 
-    return true;
+    return chatroom.participants
+      .filter((p) => p.userId.toString() !== userId)
+      .map((p) => p.userId.toString());
   }
 
   async readChatroom(chatroomId: string, userId: string): Promise<boolean> {

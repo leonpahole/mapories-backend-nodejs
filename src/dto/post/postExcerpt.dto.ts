@@ -33,7 +33,9 @@ export class PostExcerptDto {
       createdAt: post.createdAt!,
       content: post.content,
       images: post.picturesUris
-        ? post.picturesUris.map((p) => ({ url: p }))
+        ? post.picturesUris.map((p) => ({
+            url: `${process.env.PICTURES_BASE_URL}/${p}`,
+          }))
         : [],
       mapory: undefined,
       likes: {

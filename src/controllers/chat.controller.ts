@@ -16,7 +16,8 @@ import { IRequest } from "../types/api";
 import { ChatService } from "../services/chat.service";
 import { ChatroomDto } from "../dto/chatroom/chatroom.dto";
 import { ChatroomMessageDto } from "../dto/chatroom/chatroomMessage.dto";
-import { PaginatedResponse } from "../dto/PaginatedResponse";
+import { CursorPaginatedResponse } from "../dto/PaginatedResponse";
+import { LatestChatDto } from "../dto/chatroom/latestChat.dto";
 
 export class CreateChatroomRequest {
   @IsDefined()
@@ -33,17 +34,30 @@ export class ChatController implements interfaces.Controller {
     return this.chatService.getUsersChatrooms(req.userId);
   }
 
+  @httpGet("/latest-chats", isAuth)
+  public getLatestChats(@request() req: IRequest): Promise<LatestChatDto[]> {
+    return this.chatService.getLatestChats(req.userId);
+  }
+
+  @httpGet("/:id", isAuth)
+  public getChatroomInfo(
+    @request() req: IRequest,
+    @requestParam("id") id: string
+  ): Promise<ChatroomDto> {
+    return this.chatService.getChatroomInfo(req.userId, id);
+  }
+
   @httpGet("/rooms/:id/messages", isAuth)
   public getChatroomMessages(
     @request() req: IRequest,
     @requestParam("id") id: string,
-    @queryParam("skip") skip: number,
+    @queryParam("cursor") cursor?: number,
     @queryParam("pageSize") pageSize?: number
-  ): Promise<PaginatedResponse<ChatroomMessageDto>> {
+  ): Promise<CursorPaginatedResponse<ChatroomMessageDto>> {
     return this.chatService.getChatroomMessages(
       id,
       req.userId,
-      Number(skip),
+      cursor,
       Number(pageSize)
     );
   }

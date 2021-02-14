@@ -4,9 +4,14 @@ import Notification, {
   NotificationType,
 } from "../db/models/notification.model";
 import { NotificationDto } from "../dto/notification.dto";
-import { PaginatedResponse } from "../dto/PaginatedResponse";
+import {
+  CursorPaginatedResponse,
+  PaginatedResponse,
+} from "../dto/PaginatedResponse";
 import { CommonError } from "../errors/common.error";
 import { SocketPublisher } from "../socket/redis/socketPublisher";
+import { getNotificationInfo } from "../utils/getNotificationInfo";
+import { MobilePushService } from "./mobile-push.service";
 import { PushService } from "./push.service";
 import { UserUtilsService } from "./userUtils.service";
 
@@ -20,7 +25,9 @@ export class NotificationService {
   constructor(
     @inject(TYPES.UserUtilsService) private userUtilsService: UserUtilsService,
     @inject(TYPES.SocketPublisher) private socketPublisher: SocketPublisher,
-    @inject(TYPES.PushService) private pushService: PushService
+    @inject(TYPES.PushService) private pushService: PushService,
+    @inject(TYPES.MobilePushService)
+    private mobilePushService: MobilePushService
   ) {}
 
   public async getUnreadNotificationsCountsForUser(
@@ -34,27 +41,29 @@ export class NotificationService {
 
   public async getNotificationsForUser(
     userId: string,
-    pageNumber: number,
+    cursor?: number,
     pageSize: number = NOTIFICATIONS_DEFAULT_PAGE_SIZE
-  ): Promise<PaginatedResponse<NotificationDto>> {
+  ): Promise<CursorPaginatedResponse<NotificationDto>> {
     pageSize = Math.min(pageSize, NOTIFICATIONS_MAX_PAGE_SIZE);
 
     const notifications = await Notification.find({
       receiver: userId,
+      createdAt: {
+        $lte: cursor ? new Date(Number(cursor)) : new Date(),
+      },
     })
       .sort({ createdAt: -1 })
-      .skip(pageNumber * pageSize)
       .limit(pageSize + 1);
 
-    const moreAvailable = notifications.length > pageSize;
-    if (moreAvailable) {
-      notifications.pop();
+    let nextCursor: number | null = null;
+    if (notifications.length > pageSize) {
+      nextCursor = notifications.pop()!.createdAt!.getTime();
     }
 
     const notificationDtos = NotificationDto.fromModels(notifications);
-    return new PaginatedResponse<NotificationDto>(
+    return new CursorPaginatedResponse<NotificationDto>(
       notificationDtos,
-      moreAvailable
+      nextCursor
     );
   }
 
@@ -101,7 +110,17 @@ export class NotificationService {
       topic: "event://get-notification",
     });
 
-    this.pushService.sendPush(receiverId, JSON.stringify(notificationDto));
+    this.pushService.sendPush(receiverId, notificationDto);
+    const notificationInfo = getNotificationInfo(notificationDto);
+    if (notificationInfo) {
+      this.mobilePushService.sendMobilePush(receiverId, {
+        notification: {
+          title: notificationInfo.title,
+          body: notificationInfo.message,
+          tag: "notification",
+        },
+      });
+    }
   }
 
   public async createFriendRequestSentNotification(

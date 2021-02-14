@@ -252,7 +252,9 @@ export class PostService {
     }
 
     const post = await Post.findById(postId);
-    return post?.picturesUris || [];
+    return post?.picturesUris
+      ? post.picturesUris.map((p) => `${process.env.PICTURES_BASE_URL}/${p}`)
+      : [];
   }
 
   private async hasUserAuthoredPost(

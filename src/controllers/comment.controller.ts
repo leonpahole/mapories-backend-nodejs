@@ -89,25 +89,27 @@ export class CommentController implements interfaces.Controller {
   }
 
   @httpPost("/post/:postId/:commentId/like", isAuth)
-  public likeComment(
+  public async likeComment(
     @requestParam("postId") postId: string,
     @requestParam("commentId") commentId: string,
     @request() req: IRequest
-  ): Promise<void> {
-    return this.commentService.likeCommentOnPost(postId, commentId, req.userId);
+  ): Promise<{ success: boolean }> {
+    await this.commentService.likeCommentOnPost(postId, commentId, req.userId);
+    return { success: true };
   }
 
   @httpPost("/post/:postId/:commentId/unlike", isAuth)
-  public unlikeComment(
+  public async unlikeComment(
     @requestParam("postId") postId: string,
     @requestParam("commentId") commentId: string,
     @request() req: IRequest
-  ): Promise<void> {
-    return this.commentService.unlikeCommentOnPost(
+  ): Promise<{ success: boolean }> {
+    await this.commentService.unlikeCommentOnPost(
       postId,
       commentId,
       req.userId
     );
+    return { success: true };
   }
 
   /* COMMENTS ON COMMENTS */

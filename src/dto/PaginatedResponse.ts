@@ -7,3 +7,13 @@ export class PaginatedResponse<T> {
     this.moreAvailable = more;
   }
 }
+
+export class CursorPaginatedResponse<T> {
+  data: T[];
+  cursor: number | null;
+
+  constructor(d: T[], cursor: number | null) {
+    this.data = d;
+    this.cursor = cursor;
+  }
+}

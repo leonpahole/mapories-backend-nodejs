@@ -29,6 +29,9 @@ export class IUser extends TimeStamps {
 
   @prop({ required: true, default: false })
   public isVerified!: boolean;
+
+  @prop({ default: [], type: String })
+  public fcmRegistrationTokens!: string[];
 }
 
 const User = getModelForClass(IUser, {

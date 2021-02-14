@@ -1,0 +1,84 @@
+version: "3.7"
+
+services:
+  web:
+    container_name: mapories_frontend
+    image: leonpahole/mapories-frontend-react:${WEB_VERSION}
+    restart: always
+    networks:
+      - traefik-global-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`${FRONTEND_URL}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+
+  app:
+    container_name: mapories_backend
+    image: leonpahole/mapories-backend-nodejs:${BACKEND_VERSION}
+    restart: always
+    env_file: .env
+    networks:
+      - backend
+      - traefik-global-proxy
+    depends_on:
+      - mongo
+    volumes:
+      - ./public:/usr/src/app/public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`${BACKEND_DOMAIN}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+
+  mongo:
+    container_name: mapories_db
+    image: mongo:${MONGO_VERSION}
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${DB_DATABASE}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - backend
+    volumes:
+      - ./create-user.sh:/docker-entrypoint-initdb.d/create-user.sh:ro
+      - dbdata:/data/db
+
+  mongo-express:
+    container_name: mapories_dbadm
+    image: mongo-express
+    restart: always
+    depends_on:
+      - mongo
+    networks:
+      - backend
+      - traefik-global-proxy
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${DB_ROOT_USER}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${DB_ROOT_PASSWORD}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`${DB_ADMIN_DOMAIN}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+
+  redis:
+    container_name: mapories_redis
+    image: "docker.io/bitnami/redis:${REDIS_VERSION}"
+    restart: always
+    networks:
+      - backend
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+
+networks:
+  backend:
+  traefik-global-proxy:
+    external: true
+
+volumes:
+  dbdata:

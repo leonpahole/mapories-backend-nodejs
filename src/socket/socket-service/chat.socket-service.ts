@@ -6,6 +6,9 @@ import { IChatroom } from "../../db/models/chatroom.model";
 import { ISocket } from "../../types/socket";
 import { ChatroomMessage } from "../socket-controller/chat.socket-controller";
 import { SocketService } from "./socket.service";
+import { MobilePushService } from "../../services/mobile-push.service";
+import { PushService } from "../../services/push.service";
+import { logger } from "../../utils/logger";
 
 export const CHAT_NAMESPACE = "/chat";
 
@@ -14,7 +17,10 @@ export class ChatSocketService {
   constructor(
     @inject(TYPES.SocketPublisher) private socketPublisher: SocketPublisher,
     @inject(TYPES.ChatService) private chatService: ChatService,
-    @inject(TYPES.SocketService) private socketService: SocketService
+    @inject(TYPES.SocketService) private socketService: SocketService,
+    @inject(TYPES.MobilePushService)
+    private mobilePushService: MobilePushService,
+    @inject(TYPES.PushService) private pushService: PushService
   ) {}
 
   public async joinChatroomsSendOnlineStatusAndSendChatroomStatuses(
@@ -95,27 +101,54 @@ export class ChatSocketService {
   }
 
   public async sendMessage(socket: ISocket, message: ChatroomMessage) {
-    const isSent = await this.chatService.createMessage(
+    const affectedUsers = await this.chatService.createMessage(
       message.chatroomId,
       message.message,
       socket.localData.user.id
     );
 
-    if (isSent) {
-      this.socketPublisher.publish({
-        namespace: CHAT_NAMESPACE,
-        room: message.chatroomId,
-        payload: {
-          chatroomId: message.chatroomId,
-          message: {
-            sender: socket.localData.user,
-            content: message.message,
-            createdAt: new Date(),
-          },
-        },
-        topic: "event://get-message",
-      });
+    if (!affectedUsers) {
+      logger.error("Send chat: no affected users error!");
+      return;
     }
+
+    this.pushService.sendPushToMultipleUsers(affectedUsers, {
+      sender: socket.localData.user,
+      message: message.message,
+      type: "chat",
+    });
+
+    this.mobilePushService.sendMobilePushToMultipleUsers(affectedUsers, {
+      notification: {
+        title: socket.localData.user.name,
+        body: message.message,
+        tag: "chat",
+      },
+      data: {
+        type: "chat",
+        chatroomId: message.chatroomId,
+      },
+    });
+
+    const socketMessageGeneral = {
+      namespace: CHAT_NAMESPACE,
+      room: message.chatroomId,
+      payload: {
+        chatroomId: message.chatroomId,
+        message: {
+          sender: socket.localData.user,
+          content: message.message,
+          createdAt: new Date(),
+        },
+      },
+      topic: "event://get-message",
+    };
+
+    this.socketPublisher.publish(socketMessageGeneral);
+    this.socketPublisher.publish({
+      ...socketMessageGeneral,
+      topic: "event://get-message/" + message.chatroomId,
+    });
   }
 
   public async sendChatroomRead(socket: ISocket, chatroomId: string) {

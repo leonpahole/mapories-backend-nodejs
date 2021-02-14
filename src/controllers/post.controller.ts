@@ -159,23 +159,28 @@ export class PostController implements interfaces.Controller {
   }
 
   @httpPatch("/update-pictures/:id", isAuth, upload.array("pictures"))
-  public updatePicturesForPost(
+  public async updatePicturesForPost(
     @requestParam("id") id: string,
     @request() req: IRequest
-  ): Promise<string[]> {
+  ): Promise<{ images: string[] }> {
     let deletedPictures: string[] = [];
     if (req.body?.deletedPictures) {
       const parsedDeletedPictures = JSON.parse(req.body.deletedPictures);
       if (parsedDeletedPictures) {
         deletedPictures = parsedDeletedPictures as string[];
+        deletedPictures = deletedPictures.map((p) =>
+          p.replace(process.env.PICTURES_BASE_URL + "/", "")
+        );
       }
     }
 
-    return this.postService.updatePostPictures(
+    const images = await this.postService.updatePostPictures(
       id,
       req.files as Express.Multer.File[],
       deletedPictures
     );
+
+    return { images };
   }
 
   @httpPatch("/:id", isAuth, validation(CreateOrUpdatePostRequest))
@@ -197,18 +202,20 @@ export class PostController implements interfaces.Controller {
   }
 
   @httpPost("/like/:id", isAuth)
-  public likePost(
+  public async likePost(
     @requestParam("id") id: string,
     @request() req: IRequest
-  ): Promise<void> {
-    return this.postService.likePost(id, req.userId);
+  ): Promise<{ success: boolean }> {
+    await this.postService.likePost(id, req.userId);
+    return { success: true };
   }
 
   @httpPost("/unlike/:id", isAuth)
-  public unlikePost(
+  public async unlikePost(
     @requestParam("id") id: string,
     @request() req: IRequest
-  ): Promise<void> {
-    return this.postService.unlikePost(id, req.userId);
+  ): Promise<{ success: boolean }> {
+    await this.postService.unlikePost(id, req.userId);
+    return { success: true };
   }
 }

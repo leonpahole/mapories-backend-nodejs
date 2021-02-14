@@ -9,6 +9,15 @@ import { AppError } from "./errors/AppError";
 import { logger } from "./utils/logger";
 import { verify } from "jsonwebtoken";
 
+export const requestLogger = (
+  req: Request,
+  _: Response,
+  next: NextFunction
+) => {
+  logger.info(`[Request] ${req.method}: ${req.url}`);
+  next();
+};
+
 export const notFoundHandler = (
   _: Request,
   res: Response,
@@ -34,7 +43,7 @@ export const errorHandler = (
   res.status(statusCode);
   res.json({
     message: err.message,
-    stack: __prod__ ? "" : err.stack,
+    stack: __prod__ ? "" : "",
   });
 };
 

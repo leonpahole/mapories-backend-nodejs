@@ -47,6 +47,7 @@ export class AuthService {
         password: hashedPassword,
         isVerified: isSocial,
         refreshTokenVersion: 0,
+        fcmRegistrationTokens: [],
       });
     } catch (e) {
       logger.error("Create user error %o", e);

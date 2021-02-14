@@ -10,7 +10,10 @@ import {
 } from "inversify-express-utils";
 import TYPES from "../config/types";
 import { NotificationDto } from "../dto/notification.dto";
-import { PaginatedResponse } from "../dto/PaginatedResponse";
+import {
+  CursorPaginatedResponse,
+  PaginatedResponse,
+} from "../dto/PaginatedResponse";
 import { isAuth } from "../middlewares";
 import { NotificationService } from "../services/notification.service";
 import { IRequest } from "../types/api";
@@ -36,13 +39,13 @@ export class NotificationController implements interfaces.Controller {
   @httpGet("/", isAuth)
   public getNotificationsForUser(
     @request() req: IRequest,
-    @queryParam("pageNum") pageNum: number,
+    @queryParam("cursor") cursor?: number,
     @queryParam("pageSize") pageSize?: number
-  ): Promise<PaginatedResponse<NotificationDto>> {
+  ): Promise<CursorPaginatedResponse<NotificationDto>> {
     return this.notificationService.getNotificationsForUser(
       req.userId,
-      pageNum,
-      pageSize
+      cursor,
+      Number(pageSize)
     );
   }
 

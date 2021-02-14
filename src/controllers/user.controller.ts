@@ -60,32 +60,36 @@ export class UserController implements interfaces.Controller {
   public async cancelFriendRequest(
     @requestParam("userId") userId: string,
     @request() req: IRequest
-  ): Promise<void> {
+  ): Promise<{ success: boolean }> {
     await this.friendService.cancelFriendRequest(req.userId, userId);
+    return { success: true };
   }
 
   @httpPost("/accept-friend-request/:userId", isAuth)
   public async acceptFriendRequest(
     @requestParam("userId") userId: string,
     @request() req: IRequest
-  ): Promise<void> {
+  ): Promise<{ success: boolean }> {
     await this.friendService.acceptFriendRequest(req.userId, userId);
+    return { success: true };
   }
 
   @httpDelete("/decline-friend-request/:userId", isAuth)
   public async declineFriendRequest(
     @requestParam("userId") userId: string,
     @request() req: IRequest
-  ): Promise<void> {
+  ): Promise<{ success: boolean }> {
     await this.friendService.declineFriendRequest(req.userId, userId);
+    return { success: true };
   }
 
   @httpDelete("/remove-friendship/:userId", isAuth)
   public async removeFriendship(
     @requestParam("userId") userId: string,
     @request() req: IRequest
-  ): Promise<void> {
+  ): Promise<{ success: boolean }> {
     await this.friendService.removeFriendship(req.userId, userId);
+    return { success: true };
   }
 
   @httpGet("/friend-requests", isAuth)

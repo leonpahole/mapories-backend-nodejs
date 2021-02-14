@@ -1,3 +1,4 @@
+import { mongoose } from "@typegoose/typegoose";
 import { inject, injectable } from "inversify";
 import { Types } from "mongoose";
 import TYPES from "../config/types";
@@ -110,7 +111,7 @@ export class CommentService {
         $match: {
           comments: {
             $elemMatch: {
-              _id: stringToObjectId(commentId),
+              _id: mongoose.Types.ObjectId(commentId),
             },
           },
         },
@@ -120,7 +121,7 @@ export class CommentService {
       },
       {
         $match: {
-          "$comments._id": stringToObjectId(commentId),
+          "comments._id": mongoose.Types.ObjectId(commentId),
         },
       },
       {
@@ -220,8 +221,8 @@ export class CommentService {
         _id: entityId,
         comments: {
           $elemMatch: {
-            _id: stringToObjectId(commentId),
-            "author.userId": stringToObjectId(userId),
+            _id: mongoose.Types.ObjectId(commentId),
+            "author.userId": mongoose.Types.ObjectId(userId),
           },
         },
       },
@@ -296,8 +297,8 @@ export class CommentService {
         _id: entityId,
         comments: {
           $elemMatch: {
-            _id: stringToObjectId(commentId),
-            "author.userId": stringToObjectId(userId),
+            _id: mongoose.Types.ObjectId(commentId),
+            "author.userId": mongoose.Types.ObjectId(userId),
           },
         },
       },
@@ -352,7 +353,7 @@ export class CommentService {
       {
         comments: {
           $elemMatch: {
-            _id: stringToObjectId(commentId),
+            _id: mongoose.Types.ObjectId(commentId),
             deleted: true,
           },
         },

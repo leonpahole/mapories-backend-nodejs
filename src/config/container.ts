@@ -21,6 +21,7 @@ import { CommentService } from "../services/comment.service";
 import { NotificationService } from "../services/notification.service";
 import { NotificationSocketService } from "../socket/socket-service/notification.socket-service";
 import { PushService } from "../services/push.service";
+import { MobilePushService } from "../services/mobile-push.service";
 
 const container = new Container();
 container.bind<AuthService>(TYPES.AuthService).to(AuthService);
@@ -44,6 +45,9 @@ container
   .bind<NotificationSocketService>(TYPES.NotificationSocketService)
   .to(NotificationSocketService);
 container.bind<PushService>(TYPES.PushService).to(PushService);
+container
+  .bind<MobilePushService>(TYPES.MobilePushService)
+  .to(MobilePushService);
 
 container
   .bind<NotificationService>(TYPES.NotificationService)

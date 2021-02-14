@@ -23,13 +23,14 @@ export class JwtService {
     );
   }
 
-  public sendRefreshToken(res: Response, user: IUser) {
+  public sendRefreshToken(res: Response, user: IUser): string {
     const token = this.createRefreshToken(user);
     res.cookie(REFRESH_TOKEN_COOKIE_NAME, token, {
       httpOnly: true,
       path: "/auth/refresh-token",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+    return token;
   }
 
   private createRefreshToken(user: IUser): string {
@@ -49,17 +50,20 @@ export class JwtService {
   public async refreshToken(
     req: Request,
     res: Response
-  ): Promise<{ token: string; user: UserExcerptDto }> {
-    const token = req.cookies[REFRESH_TOKEN_COOKIE_NAME];
+  ): Promise<{ token: string; refreshToken: string; user: UserExcerptDto }> {
+    const token = req.body.refreshToken
+      ? req.body.refreshToken
+      : req.cookies[REFRESH_TOKEN_COOKIE_NAME];
     if (token) {
       try {
         const payload = verify(token, process.env.REFRESH_TOKEN_SECRET) as any;
         const user = await this.userUtilsService.getUserById(payload.userId);
 
         if (user && user.refreshTokenVersion === payload.tokenVersion) {
-          this.sendRefreshToken(res, user);
+          const refreshToken = this.sendRefreshToken(res, user);
           return {
             token: this.createAccessToken(user),
+            refreshToken,
             user: UserExcerptDto.fromModel(user),
           };
         }

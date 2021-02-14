@@ -112,6 +112,7 @@ export class ChangePasswordRequest {
 
 class LoginResponse {
   accessToken: string;
+  refreshToken: string;
   user: UserExcerptDto;
 }
 
@@ -152,8 +153,9 @@ export class AuthController implements interfaces.Controller {
   )
   public async verifyEmail(
     @requestBody() body: ResendVerifyAccountEmailRequest
-  ): Promise<void> {
+  ): Promise<{ success: boolean }> {
     this.authService.resendVerifyAccountEmail(body);
+    return { success: true };
   }
 
   @httpPost("/login", validation(LoginRequest))
@@ -163,11 +165,12 @@ export class AuthController implements interfaces.Controller {
   ): Promise<LoginResponse> {
     const user = await this.authService.login(body);
 
-    this.jwtService.sendRefreshToken(res, user);
+    const refreshToken = this.jwtService.sendRefreshToken(res, user);
     const accessToken = this.jwtService.createAccessToken(user);
 
     return {
       accessToken,
+      refreshToken,
       user: UserExcerptDto.fromModel(user),
     };
   }
@@ -177,10 +180,14 @@ export class AuthController implements interfaces.Controller {
     @request() req: IRequest,
     @response() res: Response
   ): Promise<LoginResponse> {
-    const { token, user } = await this.jwtService.refreshToken(req, res);
+    const { token, user, refreshToken } = await this.jwtService.refreshToken(
+      req,
+      res
+    );
 
     return {
       accessToken: token,
+      refreshToken,
       user,
     };
   }
@@ -201,8 +208,9 @@ export class AuthController implements interfaces.Controller {
   @httpPost("/forgot-password", validation(ForgotPasswordRequest))
   public async forgotPassword(
     @requestBody() body: ForgotPasswordRequest
-  ): Promise<void> {
+  ): Promise<{ success: boolean }> {
     await this.authService.sendForgotPasswordMail(body);
+    return { success: true };
   }
 
   @httpPost("/validate-forgot-password-token", validation(ValidateTokenRequest))
@@ -231,13 +239,17 @@ export class AuthController implements interfaces.Controller {
     let existingUserLoginData: LoginResponse | null = null;
 
     if (response.existingUser != null) {
-      this.jwtService.sendRefreshToken(res, response.existingUser);
+      const refreshToken = this.jwtService.sendRefreshToken(
+        res,
+        response.existingUser
+      );
       const accessToken = this.jwtService.createAccessToken(
         response.existingUser
       );
 
       existingUserLoginData = {
         accessToken,
+        refreshToken,
         user: UserExcerptDto.fromModel(response.existingUser),
       };
     }
@@ -256,11 +268,12 @@ export class AuthController implements interfaces.Controller {
   ): Promise<LoginResponse> {
     const user = await this.socialAuthService.registerSocial(provider, body);
 
-    this.jwtService.sendRefreshToken(res, user);
+    const refreshToken = this.jwtService.sendRefreshToken(res, user);
     const accessToken = this.jwtService.createAccessToken(user);
 
     return {
       accessToken,
+      refreshToken,
       user: UserExcerptDto.fromModel(user),
     };
   }

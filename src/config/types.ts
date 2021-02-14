@@ -17,6 +17,7 @@ const TYPES = {
   NotificationService: Symbol.for("NotificationService"),
   NotificationSocketService: Symbol.for("NotificationSocketService"),
   PushService: Symbol.for("PushService"),
+  MobilePushService: Symbol.for("MobilePushService"),
 };
 
 export default TYPES;
