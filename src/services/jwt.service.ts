@@ -1,7 +1,10 @@
 import { sign, verify } from "jsonwebtoken";
 import { injectable, inject } from "inversify";
 import { Response, Request } from "express";
-import { REFRESH_TOKEN_COOKIE_NAME } from "../config/constants";
+import {
+  ACCESS_TOKEN_LIFESPAN,
+  REFRESH_TOKEN_COOKIE_NAME,
+} from "../config/constants";
 import { CommonError } from "../errors/common.error";
 import { logger } from "../utils/logger";
 import TYPES from "../config/types";
@@ -19,7 +22,7 @@ export class JwtService {
     return this.createToken(
       { userId: user._id!.toString() },
       process.env.ACCESS_TOKEN_SECRET,
-      "5m"
+      ACCESS_TOKEN_LIFESPAN
     );
   }
 

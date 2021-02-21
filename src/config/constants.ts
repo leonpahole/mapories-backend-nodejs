@@ -2,6 +2,7 @@ export const __prod__ = process.env.NODE_ENV === "production";
 export const __dev__ = process.env.NODE_ENV === "development";
 
 export const REFRESH_TOKEN_COOKIE_NAME = "qid";
+export const ACCESS_TOKEN_LIFESPAN = "5m";
 
 export const FORGOT_PASSWORD_LINK_EXPIRY_HOURS = 3;
 export const FORGOT_PASSWORD_LINK_EXPIRY_MS =
